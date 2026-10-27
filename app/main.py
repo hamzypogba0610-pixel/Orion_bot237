@@ -9,3 +9,10 @@ async def home():
         "version": "0.1.0",
         "statut": "vivant"
     }
+
+@app.get("/test-api")
+async def test_api():
+    return {
+        "message": "Ma nouvelle porte fonctionne !",
+        "statut": "prêt pour les API"
+    }
