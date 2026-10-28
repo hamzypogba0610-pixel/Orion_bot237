@@ -26,13 +26,10 @@ engine = create_engine(
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine) if engine else None
 
-# ⚠️ La ligne "Base.metadata.create_all(bind=engine)" a été retirée ici pour éviter le blocage.
-
 @app.get("/")
 async def home():
     return {"message": "ORION est en ligne", "version": "0.1.0", "statut": "vivant"}
 
-# 1. Remplir les compétitions
 @app.get("/init-competitions")
 async def init_competitions():
     if not SessionLocal: return {"erreur": "Pas de BDD"}
@@ -58,11 +55,9 @@ async def init_competitions():
     finally:
         db.close()
 
-# 2. Le Cerveau (Calcul des probabilités)
 @app.get("/predict-corners/{match_id_local}")
 async def predict_corners(match_id_local: int):
     if not SessionLocal: return {"erreur": "Pas de BDD"}
-    
     db = SessionLocal()
     try:
         match = db.query(Match).filter(Match.id == match_id_local).first()
@@ -122,25 +117,29 @@ async def predict_corners(match_id_local: int):
     finally:
         db.close()
 
-# 3. LA PORTE MAGIQUE : Importer un fichier CSV
 @app.get("/import-csv/")
 async def import_csv(url: str):
     if not SessionLocal: return {"erreur": "Pas de BDD"}
     
     db = SessionLocal()
     try:
+        # ON AJOUTE UN FAUX NAVIGATEUR POUR TROMPER LE SITE
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        
         async with httpx.AsyncClient() as client:
-            response = await client.get(url)
+            response = await client.get(url, headers=headers, follow_redirects=True)
         
         if response.status_code != 200:
-            return {"erreur": "Impossible de télécharger le fichier CSV."}
+            return {"erreur": f"Impossible de télécharger. Code HTTP : {response.status_code}"}
             
         csv_file = io.StringIO(response.text)
         reader = csv.DictReader(csv_file)
         
         matchs_ajoutes = 0
         stats_ajoutees = 0
-        competition_id = 135 
+        competition_id = 135 # Serie A
 
         for row in reader:
             if not row.get('HomeTeam') or not row.get('AwayTeam') or not row.get('Date'):
