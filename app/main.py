@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 import os
 import httpx
-from datetime import date, timedelta
 
 app = FastAPI(title="ORION", version="0.1.0")
 
@@ -23,13 +22,13 @@ async def test_api_football():
         response = await client.get(url, headers=headers)
     return response.json()
 
-@app.get("/test-matchs")
-async def test_matchs():
+# NOUVEAU : On met la date dans l'adresse !
+@app.get("/test-matchs/{date_recherche}")
+async def test_matchs(date_recherche: str):
     api_key = os.getenv("API_FOOTBALL_KEY")
     if not api_key: return {"erreur": "Clé introuvable"}
 
-    # On regarde les matchs d'il y a 2 jours
-    date_recherche = (date.today() - timedelta(days=2)).isoformat()
+    # L'adresse utilise la date qu'on tape dans le navigateur
     url = f"https://v3.football.api-sports.io/fixtures?date={date_recherche}"
     headers = {"x-apisports-key": api_key}
 
@@ -39,10 +38,9 @@ async def test_matchs():
     data = response.json()
     
     if data.get("results", 0) == 0:
-        return {"message": "Aucun match trouvé ce jour-là."}
+        return {"message": f"Aucun match trouvé pour la date {date_recherche}."}
         
     matchs_propres = []
-    # On prend 5 matchs au hasard
     for m in data["response"][:5]:
         fiche = {
             "id_match": m["fixture"]["id"],
