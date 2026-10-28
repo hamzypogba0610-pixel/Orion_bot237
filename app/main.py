@@ -27,7 +27,7 @@ engine = create_engine(
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine) if engine else None
 
-# --- LA NOUVELLE PAGE D'ACCUEIL (INTERFACE) ---
+# --- LA NOUVELLE INTERFACE PRO (DASHBOARD) ---
 @app.get("/", response_class=HTMLResponse)
 async def home():
     html_content = """
@@ -35,43 +35,125 @@ async def home():
     <html lang="fr">
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>ORION - Analyse Football</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <title>ORION | Football Analytics</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
         <style>
-            body { font-family: Arial, sans-serif; background-color: #121212; color: #ffffff; padding: 20px; text-align: center; }
-            h1 { color: #00e676; }
-            .card { background-color: #1e1e1e; padding: 20px; border-radius: 10px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-            input[type="number"] { padding: 10px; font-size: 16px; border-radius: 5px; border: 1px solid #333; background-color: #2a2a2a; color: white; width: 80%; margin-bottom: 15px; }
-            button { padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; background-color: #00e676; color: #000; font-weight: bold; cursor: pointer; }
-            button:hover { background-color: #00c853; }
-            .result { margin-top: 20px; text-align: left; background-color: #2a2a2a; padding: 15px; border-radius: 5px; display: none; }
+            :root {
+                --bg-dark: #0f172a;
+                --bg-card: #1e293b;
+                --text-main: #f8fafc;
+                --text-muted: #94a3b8;
+                --accent: #10b981;
+                --accent-hover: #059669;
+                --border: #334155;
+            }
+            * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+            body { background-color: var(--bg-dark); color: var(--text-main); padding: 20px; display: flex; justify-content: center; min-height: 100vh; }
+            .container { width: 100%; max-width: 500px; }
+            
+            /* Header */
+            .header { text-align: center; margin-bottom: 30px; margin-top: 20px; }
+            .header h1 { font-size: 28px; font-weight: 800; letter-spacing: 1px; color: var(--accent); display: flex; align-items: center; justify-content: center; gap: 10px; }
+            .header p { color: var(--text-muted); font-size: 14px; margin-top: 5px; }
+
+            /* Input Card */
+            .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); margin-bottom: 20px; }
+            .input-group { display: flex; flex-direction: column; gap: 12px; }
+            label { font-size: 13px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+            input { width: 100%; padding: 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-dark); color: white; font-size: 16px; transition: 0.3s; }
+            input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2); }
+            button { width: 100%; padding: 14px; border: none; border-radius: 10px; background: var(--accent); color: #000; font-size: 16px; font-weight: 800; cursor: pointer; transition: 0.2s; display: flex; justify-content: center; align-items: center; gap: 8px; }
+            button:hover { background: var(--accent-hover); transform: translateY(-2px); }
+            button:active { transform: translateY(0); }
+
+            /* Results Section */
+            #resultats { display: none; animation: fadeIn 0.5s ease-in-out; }
+            @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+            
+            .match-title { text-align: center; font-size: 20px; font-weight: 800; margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #1e293b, #0f172a); border-radius: 12px; border: 1px solid var(--border); }
+            
+            .grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
+            .market-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; }
+            .market-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+            .market-title { font-size: 18px; font-weight: 600; }
+            .market-total { font-size: 14px; color: var(--accent); font-weight: 800; background: rgba(16, 185, 129, 0.1); padding: 4px 10px; border-radius: 20px; }
+            
+            /* Probability Bars */
+            .prob-row { margin-bottom: 15px; }
+            .prob-labels { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
+            .prob-label { color: var(--text-muted); }
+            .prob-value { font-weight: 800; }
+            .bar-bg { width: 100%; height: 8px; background: var(--bg-dark); border-radius: 4px; overflow: hidden; }
+            .bar-fill { height: 100%; border-radius: 4px; transition: width 1s ease-out; }
+            
+            .loading { display: none; text-align: center; margin-top: 20px; }
+            .spinner { width: 30px; height: 30px; border: 3px solid rgba(255,255,255,0.1); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px auto; }
+            @keyframes spin { to { transform: rotate(360deg); } }
         </style>
     </head>
     <body>
-        <h1>⚽ ORION</h1>
-        <p>Le moteur d'analyse footballistique</p>
-        
-        <div class="card">
-            <h3>Tester une prédiction</h3>
-            <p>Entre l'ID local du match (ex: 1 pour Sassuolo vs Lazio)</p>
-            <input type="number" id="matchId" placeholder="ID du match (ex: 1)">
-            <br>
-            <button onclick="analyserMatch()">Analyser le match</button>
-            
-            <div id="resultat" class="result"></div>
+        <div class="container">
+            <!-- Header -->
+            <div class="header">
+                <h1><span style="font-size: 32px;">⚽</span> ORION</h1>
+                <p>Football Analytics Engine</p>
+            </div>
+
+            <!-- Input Card -->
+            <div class="card">
+                <div class="input-group">
+                    <label>ID du Match (Base locale)</label>
+                    <input type="number" id="matchId" placeholder="Ex: 1 (Sassuolo vs Lazio)">
+                    <button onclick="analyserMatch()" id="btnAnalyser">
+                        🧠 Analyser le match
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading -->
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p style="color: var(--text-muted); font-size: 14px;">Calcul des probabilités...</p>
+            </div>
+
+            <!-- Results -->
+            <div id="resultats">
+                <div class="match-title" id="matchTitle"></div>
+                
+                <div class="grid">
+                    <!-- Carte Corners -->
+                    <div class="market-card">
+                        <div class="market-header">
+                            <span class="market-title">📐 Corners</span>
+                            <span class="market-total" id="totalCorners"></span>
+                        </div>
+                        <div id="cornersProbs"></div>
+                    </div>
+
+                    <!-- Carte Cartons -->
+                    <div class="market-card">
+                        <div class="market-header">
+                            <span class="market-title">🟨 Cartons</span>
+                            <span class="market-total" id="totalCartons"></span>
+                        </div>
+                        <div id="cartonsProbs"></div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <script>
             async function analyserMatch() {
                 const matchId = document.getElementById('matchId').value;
-                if(!matchId) { alert("Entre un ID de match !"); return; }
+                if(!matchId) { alert("Veuillez entrer un ID de match."); return; }
                 
-                const resultDiv = document.getElementById('resultat');
-                resultDiv.style.display = 'block';
-                resultDiv.innerHTML = "⏳ Analyse en cours...";
+                // UI updates
+                document.getElementById('btnAnalyser').style.display = 'none';
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('resultats').style.display = 'none';
 
                 try {
-                    // On appelle nos deux cerveaux
                     const resCorners = await fetch(`/predict-corners/${matchId}`);
                     const dataCorners = await resCorners.json();
                     
@@ -79,26 +161,52 @@ async def home():
                     const dataCartons = await resCartons.json();
 
                     if(dataCorners.erreur || dataCartons.erreur) {
-                        resultDiv.innerHTML = "❌ Erreur : Match introuvable ou données manquantes.";
-                        return;
+                        alert("Erreur : Match introuvable ou données manquantes.");
+                        return resetUI();
                     }
 
-                    resultDiv.innerHTML = `
-                        <h4>${dataCorners.match}</h4>
-                        <p><b>📊 Corners (Total attendu: ${dataCorners.analyse_corners.total_attendu})</b></p>
-                        <ul>
-                            <li>Plus de 8.5 corners : <b>${dataCorners.analyse_corners.probabilite_plus_de_8_5}%</b></li>
-                            <li>Plus de 9.5 corners : <b>${dataCorners.analyse_corners.probabilite_plus_de_9_5}%</b></li>
-                        </ul>
-                        <p><b>🟨 Cartons (Total attendu: ${dataCartons.analyse_cartons.total_attendu})</b></p>
-                        <ul>
-                            <li>Plus de 3.5 cartons : <b>${dataCartons.analyse_cartons.probabilite_plus_de_3_5}%</b></li>
-                            <li>Plus de 4.5 cartons : <b>${dataCartons.analyse_cartons.probabilite_plus_de_4_5}%</b></li>
-                        </ul>
-                    `;
+                    // Remplissage des données
+                    document.getElementById('matchTitle').innerText = dataCorners.match;
+                    document.getElementById('totalCorners').innerText = `Moyenne: ${dataCorners.analyse_corners.total_attendu}`;
+                    document.getElementById('totalCartons').innerText = `Moyenne: ${dataCartons.analyse_cartons.total_attendu}`;
+
+                    // Génération des barres de probabilité
+                    document.getElementById('cornersProbs').innerHTML = genererBarres(dataCorners.analyse_corners, ['probabilite_plus_de_8_5', 'probabilite_plus_de_9_5'], ['+8.5 Corners', '+9.5 Corners']);
+                    document.getElementById('cartonsProbs').innerHTML = genererBarres(dataCartons.analyse_cartons, ['probabilite_plus_de_3_5', 'probabilite_plus_de_4_5'], ['+3.5 Cartons', '+4.5 Cartons']);
+
+                    document.getElementById('resultats').style.display = 'block';
                 } catch (e) {
-                    resultDiv.innerHTML = "❌ Erreur de connexion avec le serveur.";
+                    alert("Erreur de connexion avec le serveur.");
+                } finally {
+                    resetUI();
                 }
+            }
+
+            function genererBarres(data, cles, labels) {
+                let html = '';
+                cles.forEach((cle, index) => {
+                    let proba = data[cle];
+                    // Couleur dynamique selon la probabilité
+                    let couleur = proba > 60 ? '#10b981' : (proba > 40 ? '#f59e0b' : '#ef4444');
+                    
+                    html += `
+                        <div class="prob-row">
+                            <div class="prob-labels">
+                                <span class="prob-label">${labels[index]}</span>
+                                <span class="prob-value" style="color: ${couleur}">${proba}%</span>
+                            </div>
+                            <div class="bar-bg">
+                                <div class="bar-fill" style="width: ${proba}%; background-color: ${couleur};"></div>
+                            </div>
+                        </div>
+                    `;
+                });
+                return html;
+            }
+
+            function resetUI() {
+                document.getElementById('btnAnalyser').style.display = 'flex';
+                document.getElementById('loading').style.display = 'none';
             }
         </script>
     </body>
@@ -106,7 +214,7 @@ async def home():
     """
     return HTMLResponse(content=html_content)
 
-# --- TES ROUTES EXISTANTES (API) ---
+# --- ROUTES API (INCHANGÉES) ---
 @app.get("/init-competitions")
 async def init_competitions():
     if not SessionLocal: return {"erreur": "Pas de BDD"}
