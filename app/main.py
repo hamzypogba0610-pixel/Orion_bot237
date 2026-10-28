@@ -47,8 +47,8 @@ async def home():
             .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); margin-bottom: 20px; }
             .input-group { display: flex; flex-direction: column; gap: 15px; }
             label { font-size: 13px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
-            input { width: 100%; padding: 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-dark); color: white; font-size: 16px; }
-            input:focus { outline: none; border-color: var(--accent); }
+            input[type="number"] { width: 100%; padding: 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-dark); color: white; font-size: 16px; }
+            input[type="number"]:focus { outline: none; border-color: var(--accent); }
             button { width: 100%; padding: 14px; border: none; border-radius: 10px; background: var(--accent); color: #000; font-size: 16px; font-weight: 800; cursor: pointer; transition: 0.2s; }
             button:hover { background: var(--accent-hover); }
 
@@ -61,16 +61,18 @@ async def home():
             .market-title { font-size: 16px; font-weight: 600; }
             .market-total { font-size: 13px; color: var(--accent); font-weight: 800; background: rgba(16, 185, 129, 0.1); padding: 4px 10px; border-radius: 20px; }
             
-            .prob-row { margin-bottom: 15px; background: var(--bg-dark); padding: 10px; border-radius: 8px; }
+            .prob-row { margin-bottom: 15px; background: var(--bg-dark); padding: 12px; border-radius: 8px; border: 1px solid var(--border); }
             .prob-labels { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
             .prob-label { color: var(--text-muted); }
             .prob-value { font-weight: 800; }
-            .bar-bg { width: 100%; height: 6px; background: #000; border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
+            .bar-bg { width: 100%; height: 6px; background: #000; border-radius: 4px; overflow: hidden; margin-bottom: 10px; }
             .bar-fill { height: 100%; border-radius: 4px; transition: width 1s ease-out; }
             
+            .cote-input { width: 80px !important; padding: 6px !important; font-size: 14px !important; text-align: center; border-radius: 6px !important; }
             .value-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 800; margin-top: 5px; }
             .value-yes { background-color: rgba(16, 185, 129, 0.2); color: var(--accent); border: 1px solid var(--accent); }
             .value-no { background-color: rgba(239, 68, 68, 0.2); color: var(--danger); border: 1px solid var(--danger); }
+            .value-empty { background-color: var(--bg-card); color: var(--text-muted); border: 1px solid var(--border); }
         </style>
     </head>
     <body>
@@ -86,11 +88,7 @@ async def home():
                         <label>ID du Match</label>
                         <input type="number" id="matchId" placeholder="Ex: 1">
                     </div>
-                    <div>
-                        <label>Cote proposée (Bookmaker)</label>
-                        <input type="number" step="0.01" id="coteInput" placeholder="Ex: 1.85">
-                    </div>
-                    <button onclick="analyserMatch()">🧠 Analyser la Value</button>
+                    <button onclick="analyserMatch()">🧠 Analyser le match</button>
                 </div>
             </div>
 
@@ -116,9 +114,7 @@ async def home():
         <script>
             async function analyserMatch() {
                 const matchId = document.getElementById('matchId').value;
-                const cote = parseFloat(document.getElementById('coteInput').value);
                 if(!matchId) { alert("Veuillez entrer un ID."); return; }
-                if(!cote || cote < 1) { alert("Veuillez entrer une cote valide (ex: 1.85)."); return; }
 
                 document.getElementById('resultats').style.display = 'none';
 
@@ -134,9 +130,8 @@ async def home():
                     document.getElementById('totalCorners').innerText = `Moy: ${dataC.analyse_corners.total_attendu}`;
                     document.getElementById('totalCartons').innerText = `Moy: ${dataK.analyse_cartons.total_attendu}`;
 
-                    // Génération avec calcul de Value
-                    document.getElementById('cornersProbs').innerHTML = genererBarres(dataC.analyse_corners, ['probabilite_plus_de_8_5', 'probabilite_plus_de_9_5'], ['+8.5 Corners', '+9.5 Corners'], cote);
-                    document.getElementById('cartonsProbs').innerHTML = genererBarres(dataK.analyse_cartons, ['probabilite_plus_de_3_5', 'probabilite_plus_de_4_5'], ['+3.5 Cartons', '+4.5 Cartons'], cote);
+                    document.getElementById('cornersProbs').innerHTML = genererBarres(dataC.analyse_corners, ['probabilite_plus_de_8_5', 'probabilite_plus_de_9_5'], ['+8.5 Corners', '+9.5 Corners']);
+                    document.getElementById('cartonsProbs').innerHTML = genererBarres(dataK.analyse_cartons, ['probabilite_plus_de_3_5', 'probabilite_plus_de_4_5'], ['+3.5 Cartons', '+4.5 Cartons']);
 
                     document.getElementById('resultats').style.display = 'block';
                 } catch (e) {
@@ -144,22 +139,12 @@ async def home():
                 }
             }
 
-            function genererBarres(data, cles, labels, cote) {
+            function genererBarres(data, cles, labels) {
                 let html = '';
                 cles.forEach((cle, index) => {
                     let proba = data[cle];
-                    let probaDecimale = proba / 100;
-                    let ev = (probaDecimale * cote) - 1; // Formule magique EV
-                    
                     let couleurBarre = proba > 60 ? '#10b981' : (proba > 40 ? '#f59e0b' : '#ef4444');
-                    
-                    // Badge Value Bet
-                    let badgeHTML = '';
-                    if (ev > 0) {
-                        badgeHTML = `<span class="value-badge value-yes">✅ VALUE BET (+${(ev*100).toFixed(1)}% EV)</span>`;
-                    } else {
-                        badgeHTML = `<span class="value-badge value-no">❌ Pas de Value (${(ev*100).toFixed(1)}% EV)</span>`;
-                    }
+                    let idInput = `cote_${cle}`; // ID unique pour chaque case
                     
                     html += `
                         <div class="prob-row">
@@ -168,11 +153,39 @@ async def home():
                                 <span class="prob-value" style="color: ${couleurBarre}">${proba}%</span>
                             </div>
                             <div class="bar-bg"><div class="bar-fill" style="width: ${proba}%; background-color: ${couleurBarre};"></div></div>
-                            ${badgeHTML}
+                            
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                                <div>
+                                    <span style="font-size: 12px; color: var(--text-muted);">Cote: </span>
+                                    <input type="number" step="0.01" class="cote-input" id="${idInput}" placeholder="Ex: 1.85" oninput="calculerEV('${idInput}', ${proba})">
+                                </div>
+                                <div id="badge_${cle}">
+                                    <span class="value-badge value-empty">En attente de cote</span>
+                                </div>
+                            </div>
                         </div>
                     `;
                 });
                 return html;
+            }
+
+            function calculerEV(inputId, proba) {
+                let cote = parseFloat(document.getElementById(inputId).value);
+                let badgeDiv = document.getElementById(`badge_${inputId.replace('cote_', '')}`);
+                
+                if (!cote || cote < 1) {
+                    badgeDiv.innerHTML = `<span class="value-badge value-empty">En attente de cote</span>`;
+                    return;
+                }
+
+                let probaDecimale = proba / 100;
+                let ev = (probaDecimale * cote) - 1;
+
+                if (ev > 0) {
+                    badgeDiv.innerHTML = `<span class="value-badge value-yes">✅ VALUE BET (+${(ev*100).toFixed(1)}% EV)</span>`;
+                } else {
+                    badgeDiv.innerHTML = `<span class="value-badge value-no">❌ Pas de Value (${(ev*100).toFixed(1)}% EV)</span>`;
+                }
             }
         </script>
     </body>
