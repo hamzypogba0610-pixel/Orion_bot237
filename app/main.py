@@ -505,3 +505,26 @@ async def import_csv(url: str):
         return {"erreur": str(e)}
     finally:
         db.close()
+
+@app.get("/api/historique")
+async def api_historique():
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        # On récupère les 20 dernières prédictions, avec les infos du match
+        predictions = db.query(Prediction, Match).join(Match, Prediction.match_id == Match.id).order_by(Prediction.date_prediction.desc()).limit(20).all()
+        
+        resultat = []
+        for p, m in predictions:
+            resultat.append({
+                "match": f"{m.equipe_domicile} vs {m.equipe_exterieur}",
+                "marche": p.marche,
+                "ligne": p.ligne,
+                "probabilite": p.probabilite_brute,
+                "date": p.date_prediction.strftime("%d/%m/%Y %H:%M") if p.date_prediction else "Date inconnue"
+            })
+        return resultat
+    except Exception as e:
+        return {"erreur": str(e)}
+    finally:
+        db.close()
