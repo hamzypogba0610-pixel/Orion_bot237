@@ -123,7 +123,13 @@ async def import_csv(url: str):
     
     db = SessionLocal()
     try:
-        # ON AJOUTE UN FAUX NAVIGATEUR POUR TROMPER LE SITE
+        # 1. On cherche l'ID réel de la Serie A dans notre base
+        serie_a = db.query(Competition).filter(Competition.nom == "Serie A").first()
+        if not serie_a:
+            return {"erreur": "La Serie A n'est pas dans la base. Va d'abord sur /init-competitions."}
+        
+        competition_id = serie_a.id # On utilise le vrai ID de Neon !
+
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         }
@@ -139,7 +145,6 @@ async def import_csv(url: str):
         
         matchs_ajoutes = 0
         stats_ajoutees = 0
-        competition_id = 135 # Serie A
 
         for row in reader:
             if not row.get('HomeTeam') or not row.get('AwayTeam') or not row.get('Date'):
@@ -161,7 +166,7 @@ async def import_csv(url: str):
                     date_obj = datetime.now()
 
             nouveau_match = Match(
-                competition_id=competition_id,
+                competition_id=competition_id, # On utilise le bon ID ici
                 date_heure=date_obj,
                 equipe_domicile=row['HomeTeam'],
                 equipe_exterieur=row['AwayTeam'],
@@ -192,8 +197,8 @@ async def import_csv(url: str):
 
         db.commit()
         return {
-            "message": f"Importation réussie ! {matchs_ajoutes} matchs et {stats_ajoutees} fiches de stats ajoutés à la base.",
-            "competition": "Serie A"
+            "message": f"Importation réussie ! {matchs_ajoutes} matchs et {stats_ajoutees} fiches de stats ajoutés.",
+            "competition": "Serie A (ID interne: " + str(competition_id) + ")"
         }
     except Exception as e:
         db.rollback()
