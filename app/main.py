@@ -4,9 +4,12 @@ import httpx
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.db_models import Base, Competition, Match, MatchStat
-from datetime import datetime, timedelta
+from datetime import datetime
 from scipy.stats import poisson
 import asyncio
+import csv
+import io
+import hashlib
 
 app = FastAPI(title="ORION", version="0.1.0")
 
@@ -30,7 +33,7 @@ if engine:
 async def home():
     return {"message": "ORION est en ligne", "version": "0.1.0", "statut": "vivant"}
 
-# 1. Remplir les compétitions
+# 1. Remplir les compétitions (si ce n'est pas déjà fait)
 @app.get("/init-competitions")
 async def init_competitions():
     if not SessionLocal: return {"erreur": "Pas de BDD"}
@@ -56,102 +59,7 @@ async def init_competitions():
     finally:
         db.close()
 
-# 2. Tout synchroniser d'un coup par date
-@app.get("/sync-tout/{date_recherche}")
-async def sync_tout(date_recherche: str):
-    api_key = os.getenv("API_FOOTBALL_KEY")
-    if not api_key or not SessionLocal: return {"erreur": "Configuration manquante"}
-    
-    db = SessionLocal()
-    try:
-        url = f"https://v3.football.api-sports.io/fixtures?date={date_recherche}"
-        headers = {"x-apisports-key": api_key}
-        
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers)
-        data = response.json()
-        
-        if data.get("results", 0) == 0: return {"message": "Aucun match ce jour-là."}
-
-        top_leagues = [39, 140, 135, 61, 78]
-        matchs_ajoutes = 0
-        stats_ajoutees = 0
-
-        for m in data["response"]:
-            id_ligue = m["league"]["id"]
-            if id_ligue not in top_leagues: continue
-
-            id_match_api = m["fixture"]["id"]
-            competition_locale = db.query(Competition).filter(Competition.id_source == id_ligue).first()
-            
-            if competition_locale:
-                match_local = db.query(Match).filter(Match.id_source_apifootball == id_match_api).first()
-                if not match_local:
-                    date_str = m["fixture"]["date"].replace("Z", "+00:00")
-                    match_local = Match(
-                        competition_id=competition_locale.id,
-                        date_heure=datetime.fromisoformat(date_str),
-                        equipe_domicile=m["teams"]["home"]["name"],
-                        equipe_exterieur=m["teams"]["away"]["name"],
-                        statut=m["fixture"]["status"]["short"],
-                        id_source_apifootball=id_match_api,
-                        score_domicile=m["goals"]["home"],
-                        score_exterieur=m["goals"]["away"]
-                    )
-                    db.add(match_local)
-                    db.commit()
-                    db.refresh(match_local)
-                    matchs_ajoutes += 1
-                
-                if m["fixture"]["status"]["short"] == "FT":
-                    deja_stats = db.query(MatchStat).filter(MatchStat.match_id == match_local.id).first()
-                    if not deja_stats:
-                        url_stats = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={id_match_api}"
-                        async with httpx.AsyncClient() as client:
-                            resp_stats = await client.get(url_stats, headers=headers)
-                        data_stats = resp_stats.json()
-                        
-                        if data_stats.get("results", 0) > 0:
-                            corners_dom, corners_ext = 0, 0
-                            jaunes_dom, jaunes_ext = 0, 0
-                            rouges_dom, rouges_ext = 0, 0
-                            
-                            stats_dom = data_stats["response"][0]["statistics"]
-                            stats_ext = data_stats["response"][1]["statistics"]
-                            
-                            for s in stats_dom:
-                                if s["type"] == "Corner Kicks": corners_dom = s["value"] or 0
-                                if s["type"] == "Yellow Cards": jaunes_dom = s["value"] or 0
-                                if s["type"] == "Red Cards": rouges_dom = s["value"] or 0
-                            for s in stats_ext:
-                                if s["type"] == "Corner Kicks": corners_ext = s["value"] or 0
-                                if s["type"] == "Yellow Cards": jaunes_ext = s["value"] or 0
-                                if s["type"] == "Red Cards": rouges_ext = s["value"] or 0
-
-                            db.add(MatchStat(
-                                match_id=match_local.id,
-                                source_api="api-football",
-                                corners_domicile=corners_dom,
-                                corners_exterieur=corners_ext,
-                                cartons_jaunes_domicile=jaunes_dom,
-                                cartons_jaunes_exterieur=jaunes_ext,
-                                cartons_rouges_domicile=rouges_dom,
-                                cartons_rouges_exterieur=rouges_ext,
-                                statut_validation="confirmé"
-                            ))
-                            db.commit()
-                            stats_ajoutees += 1
-                            
-                        await asyncio.sleep(0.5)
-
-        return {"message": f"Terminé ! {matchs_ajoutes} matchs ajoutés, {stats_ajoutees} fiches de stats ajoutées."}
-    except Exception as e:
-        db.rollback()
-        return {"erreur": str(e)}
-    finally:
-        db.close()
-
-# 3. Le cerveau (Calcul des probabilités)
+# 2. Le Cerveau (Calcul des probabilités)
 @app.get("/predict-corners/{match_id_local}")
 async def predict_corners(match_id_local: int):
     if not SessionLocal: return {"erreur": "Pas de BDD"}
@@ -162,12 +70,12 @@ async def predict_corners(match_id_local: int):
         if not match:
             return {"erreur": "Match introuvable dans la base."}
 
+        # Calcul des moyennes pour l'équipe à domicile
         stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
             (Match.equipe_domicile == match.equipe_domicile) | (Match.equipe_exterieur == match.equipe_domicile)
         ).all()
         
-        total_corners_dom = 0
-        nb_matchs_dom = 0
+        total_corners_dom, nb_matchs_dom = 0, 0
         for stat, m in stats_dom:
             if m.equipe_domicile == match.equipe_domicile and stat.corners_domicile is not None:
                 total_corners_dom += stat.corners_domicile
@@ -178,12 +86,12 @@ async def predict_corners(match_id_local: int):
 
         moyenne_dom = (total_corners_dom / nb_matchs_dom) if nb_matchs_dom > 0 else 5.5
 
+        # Calcul des moyennes pour l'équipe à l'extérieur
         stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
             (Match.equipe_domicile == match.equipe_exterieur) | (Match.equipe_exterieur == match.equipe_exterieur)
         ).all()
         
-        total_corners_ext = 0
-        nb_matchs_ext = 0
+        total_corners_ext, nb_matchs_ext = 0, 0
         for stat, m in stats_ext:
             if m.equipe_domicile == match.equipe_exterieur and stat.corners_domicile is not None:
                 total_corners_ext += stat.corners_domicile
@@ -217,102 +125,88 @@ async def predict_corners(match_id_local: int):
     finally:
         db.close()
 
-# 4. Synchroniser une équipe par plage de dates
-@app.get("/sync-equipe/{equipe_id_api}")
-async def sync_equipe(equipe_id_api: int):
-    api_key = os.getenv("API_FOOTBALL_KEY")
-    if not api_key or not SessionLocal: return {"erreur": "Configuration manquante"}
+# 3. LA NOUVELLE PORTE MAGIQUE : Importer un fichier CSV
+@app.get("/import-csv/")
+async def import_csv(url: str):
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
     
     db = SessionLocal()
     try:
-        # On calcule la date d'il y a 30 jours et aujourd'hui
-        aujourd_hui = datetime.now().strftime("%Y-%m-%d")
-        il_y_a_30_jours = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
-
-        # On demande les matchs de l'équipe sur cette période
-        url = f"https://v3.football.api-sports.io/fixtures?team={equipe_id_api}&from={il_y_a_30_jours}&to={aujourd_hui}"
-        headers = {"x-apisports-key": api_key}
-        
+        # 1. Télécharger le fichier CSV
         async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers)
-        data = response.json()
+            response = await client.get(url)
         
-        if data.get("results", 0) == 0: 
-            return {"message": f"Aucun match trouvé pour l'équipe {equipe_id_api} entre le {il_y_a_30_jours} et le {aujourd_hui}."}
-
-        top_leagues = [39, 140, 135, 61, 78]
+        if response.status_code != 200:
+            return {"erreur": "Impossible de télécharger le fichier CSV."}
+            
+        # 2. Lire le fichier ligne par ligne
+        csv_file = io.StringIO(response.text)
+        reader = csv.DictReader(csv_file)
+        
         matchs_ajoutes = 0
         stats_ajoutees = 0
+        competition_id = 135 # On force sur la Serie A (Italie) pour ce test
 
-        for m in data["response"]:
-            id_ligue = m["league"]["id"]
-            if id_ligue not in top_leagues: continue
-            
-            if m["fixture"]["status"]["short"] != "FT": continue
-
-            id_match_api = m["fixture"]["id"]
-            competition_locale = db.query(Competition).filter(Competition.id_source == id_ligue).first()
-            
-            if competition_locale:
-                match_local = db.query(Match).filter(Match.id_source_apifootball == id_match_api).first()
-                if not match_local:
-                    date_str = m["fixture"]["date"].replace("Z", "+00:00")
-                    match_local = Match(
-                        competition_id=competition_locale.id,
-                        date_heure=datetime.fromisoformat(date_str),
-                        equipe_domicile=m["teams"]["home"]["name"],
-                        equipe_exterieur=m["teams"]["away"]["name"],
-                        statut=m["fixture"]["status"]["short"],
-                        id_source_apifootball=id_match_api,
-                        score_domicile=m["goals"]["home"],
-                        score_exterieur=m["goals"]["away"]
-                    )
-                    db.add(match_local)
-                    db.commit()
-                    db.refresh(match_local)
-                    matchs_ajoutes += 1
+        for row in reader:
+            # On vérifie que les données essentielles existent
+            if not row.get('HomeTeam') or not row.get('AwayTeam') or not row.get('Date'):
+                continue
                 
-                deja_stats = db.query(MatchStat).filter(MatchStat.match_id == match_local.id).first()
-                if not deja_stats:
-                    url_stats = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={id_match_api}"
-                    async with httpx.AsyncClient() as client:
-                        resp_stats = await client.get(url_stats, headers=headers)
-                    data_stats = resp_stats.json()
-                    
-                    if data_stats.get("results", 0) > 0:
-                        corners_dom, corners_ext = 0, 0
-                        jaunes_dom, jaunes_ext = 0, 0
-                        rouges_dom, rouges_ext = 0, 0
-                        
-                        stats_dom = data_stats["response"][0]["statistics"]
-                        stats_ext = data_stats["response"][1]["statistics"]
-                        
-                        for s in stats_dom:
-                            if s["type"] == "Corner Kicks": corners_dom = s["value"] or 0
-                            if s["type"] == "Yellow Cards": jaunes_dom = s["value"] or 0
-                            if s["type"] == "Red Cards": rouges_dom = s["value"] or 0
-                        for s in stats_ext:
-                            if s["type"] == "Corner Kicks": corners_ext = s["value"] or 0
-                            if s["type"] == "Yellow Cards": jaunes_ext = s["value"] or 0
-                            if s["type"] == "Red Cards": rouges_ext = s["value"] or 0
+            # On crée un faux ID unique pour la base de données (basé sur les noms et la date)
+            fake_id_str = f"{row['HomeTeam']}{row['AwayTeam']}{row['Date']}"
+            fake_id = int(hashlib.md5(fake_id_str.encode()).hexdigest()[:8], 16)
+            
+            # On vérifie si le match n'est pas déjà dans la base
+            match_existant = db.query(Match).filter(Match.id_source_apifootball == fake_id).first()
+            if match_existant:
+                continue
 
-                        db.add(MatchStat(
-                            match_id=match_local.id,
-                            source_api="api-football",
-                            corners_domicile=corners_dom,
-                            corners_exterieur=corners_ext,
-                            cartons_jaunes_domicile=jaunes_dom,
-                            cartons_jaunes_exterieur=jaunes_ext,
-                            cartons_rouges_domicile=rouges_dom,
-                            cartons_rouges_exterieur=rouges_ext,
-                            statut_validation="confirmé"
-                        ))
-                        db.commit()
-                        stats_ajoutees += 1
-                        
-                    await asyncio.sleep(0.5)
+            # On formate la date (le CSV donne JJ/MM/AAAA)
+            try:
+                date_obj = datetime.strptime(row['Date'], "%d/%m/%Y")
+            except:
+                try:
+                    date_obj = datetime.strptime(row['Date'], "%d/%m/%y")
+                except:
+                    date_obj = datetime.now()
 
-        return {"message": f"Succès ! {matchs_ajoutes} matchs et {stats_ajoutees} stats ajoutés pour l'équipe {equipe_id_api} (période du {il_y_a_30_jours} au {aujourd_hui})."}
+            # On crée le match
+            nouveau_match = Match(
+                competition_id=competition_id,
+                date_heure=date_obj,
+                equipe_domicile=row['HomeTeam'],
+                equipe_exterieur=row['AwayTeam'],
+                statut="FT",
+                id_source_apifootball=fake_id,
+                score_domicile=int(row['FTHG']) if row.get('FTHG') and row['FTHG'].isdigit() else None,
+                score_exterieur=int(row['FTAG']) if row.get('FTAG') and row['FTAG'].isdigit() else None
+            )
+            db.add(nouveau_match)
+            db.commit()
+            db.refresh(nouveau_match)
+            matchs_ajoutes += 1
+
+            # On crée les stats (Corners et Cartons)
+            if row.get('HC') and row.get('AC'):
+                nouvelle_stat = MatchStat(
+                    match_id=nouveau_match.id,
+                    source_api="csv-football-data",
+                    corners_domicile=int(row['HC']) if row['HC'].isdigit() else 0,
+                    corners_exterieur=int(row['AC']) if row['AC'].isdigit() else 0,
+                    cartons_jaunes_domicile=int(row['HY']) if row.get('HY') and row['HY'].isdigit() else 0,
+                    cartons_jaunes_exterieur=int(row['AY']) if row.get('AY') and row['AY'].isdigit() else 0,
+                    cartons_rouges_domicile=int(row['HR']) if row.get('HR') and row['HR'].isdigit() else 0,
+                    cartons_rouges_exterieur=int(row['AR']) if row.get('AR') and row['AR'].isdigit() else 0,
+                    statut_validation="confirmé"
+                )
+                db.add(nouvelle_stat)
+                stats_ajoutees += 1
+
+        db.commit()
+        return {
+            "message": f"Importation réussie ! {matchs_ajoutes} matchs et {stats_ajoutees} fiches de stats ajoutés à la base.",
+            "competition": "Serie A"
+        }
     except Exception as e:
         db.rollback()
         return {"erreur": str(e)}
