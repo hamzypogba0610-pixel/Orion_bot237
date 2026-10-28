@@ -34,7 +34,7 @@ async def home():
         <style>
             :root {
                 --bg-dark: #0f172a; --bg-card: #1e293b; --text-main: #f8fafc; --text-muted: #94a3b8;
-                --accent: #10b981; --accent-hover: #059669; --border: #334155; --danger: #ef4444;
+                --accent: #10b981; --accent-hover: #059669; --border: #334155; --danger: #ef4444; --blue: #3b82f6;
             }
             * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
             body { background-color: var(--bg-dark); color: var(--text-main); padding: 20px; display: flex; justify-content: center; min-height: 100vh; }
@@ -47,14 +47,16 @@ async def home():
             .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); margin-bottom: 20px; }
             .input-group { display: flex; flex-direction: column; gap: 15px; }
             label { font-size: 13px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
-            input[type="number"], select { width: 100%; padding: 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-dark); color: white; font-size: 16px; appearance: none; -webkit-appearance: none; }
+            input[type="number"], select { width: 100%; padding: 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-dark); color: white; font-size: 16px; appearance: none; }
             input[type="number"]:focus, select:focus { outline: none; border-color: var(--accent); }
             button { width: 100%; padding: 14px; border: none; border-radius: 10px; background: var(--accent); color: #000; font-size: 16px; font-weight: 800; cursor: pointer; transition: 0.2s; }
             button:hover { background: var(--accent-hover); }
-            .btn-save { background-color: #3b82f6; color: white; margin-top: 15px; }
+            .btn-save { background-color: var(--blue); color: white; margin-top: 15px; }
             .btn-save:hover { background-color: #2563eb; }
+            .btn-history { background-color: transparent; border: 1px solid var(--text-muted); color: var(--text-muted); margin-bottom: 20px; }
+            .btn-history:hover { background-color: rgba(255,255,255,0.1); color: white; }
 
-            #resultats { display: none; animation: fadeIn 0.5s ease-in-out; }
+            #resultats, #historiquePage { display: none; animation: fadeIn 0.5s ease-in-out; }
             @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
             
             .match-title { text-align: center; font-size: 18px; font-weight: 800; margin-bottom: 15px; padding: 15px; background: linear-gradient(135deg, #1e293b, #0f172a); border-radius: 12px; border: 1px solid var(--border); }
@@ -75,6 +77,14 @@ async def home():
             .value-yes { background-color: rgba(16, 185, 129, 0.2); color: var(--accent); border: 1px solid var(--accent); }
             .value-no { background-color: rgba(239, 68, 68, 0.2); color: var(--danger); border: 1px solid var(--danger); }
             .value-empty { background-color: var(--bg-card); color: var(--text-muted); border: 1px solid var(--border); }
+            
+            /* Historique */
+            .history-item { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+            .history-info h4 { font-size: 15px; margin-bottom: 4px; }
+            .history-info p { font-size: 12px; color: var(--text-muted); }
+            .history-proba { text-align: right; }
+            .history-proba span { display: block; font-size: 18px; font-weight: 800; color: var(--accent); }
+            .history-proba small { font-size: 11px; color: var(--text-muted); }
         </style>
     </head>
     <body>
@@ -84,35 +94,45 @@ async def home():
                 <p>Football Analytics Engine</p>
             </div>
 
-            <div class="card">
-                <div class="input-group">
-                    <div>
-                        <label>Sélectionner un match</label>
-                        <select id="matchId">
-                            <option value="">Chargement des matchs...</option>
-                        </select>
+            <button class="btn-history" onclick="toggleHistorique()" id="btnHist">📜 Voir l'historique</button>
+
+            <!-- SECTION ANALYSE -->
+            <div id="analysePage">
+                <div class="card">
+                    <div class="input-group">
+                        <div>
+                            <label>Sélectionner un match</label>
+                            <select id="matchId">
+                                <option value="">Chargement des matchs...</option>
+                            </select>
+                        </div>
+                        <button onclick="analyserMatch()">🧠 Analyser le match</button>
                     </div>
-                    <button onclick="analyserMatch()">🧠 Analyser le match</button>
+                </div>
+
+                <div id="resultats">
+                    <div class="match-title" id="matchTitle"></div>
+                    <div class="market-card">
+                        <div class="market-header">
+                            <span class="market-title">📐 Corners</span>
+                            <span class="market-total" id="totalCorners"></span>
+                        </div>
+                        <div id="cornersProbs"></div>
+                    </div>
+                    <div class="market-card">
+                        <div class="market-header">
+                            <span class="market-title">🟨 Cartons</span>
+                            <span class="market-total" id="totalCartons"></span>
+                        </div>
+                        <div id="cartonsProbs"></div>
+                    </div>
+                    <button class="btn-save" onclick="sauvegarderPrediction()">💾 Sauvegarder cette analyse</button>
                 </div>
             </div>
 
-            <div id="resultats">
-                <div class="match-title" id="matchTitle"></div>
-                <div class="market-card">
-                    <div class="market-header">
-                        <span class="market-title">📐 Corners</span>
-                        <span class="market-total" id="totalCorners"></span>
-                    </div>
-                    <div id="cornersProbs"></div>
-                </div>
-                <div class="market-card">
-                    <div class="market-header">
-                        <span class="market-title">🟨 Cartons</span>
-                        <span class="market-total" id="totalCartons"></span>
-                    </div>
-                    <div id="cartonsProbs"></div>
-                </div>
-                <button class="btn-save" onclick="sauvegarderPrediction()">💾 Sauvegarder cette analyse</button>
+            <!-- SECTION HISTORIQUE -->
+            <div id="historiquePage">
+                <div id="listeHistorique"></div>
             </div>
         </div>
 
@@ -139,9 +159,7 @@ async def home():
                         option.text = `${m.nom} (${m.date})`;
                         select.appendChild(option);
                     });
-                } catch (e) {
-                    console.error("Erreur chargement matchs:", e);
-                }
+                } catch (e) { console.error(e); }
             }
 
             window.onload = chargerMatchs;
@@ -172,9 +190,7 @@ async def home():
                     document.getElementById('cartonsProbs').innerHTML = genererBarres(dataK.analyse_cartons, ['probabilite_plus_de_3_5', 'probabilite_plus_de_4_5'], ['+3.5 Cartons', '+4.5 Cartons']);
 
                     document.getElementById('resultats').style.display = 'block';
-                } catch (e) {
-                    alert("Erreur de connexion.");
-                }
+                } catch (e) { alert("Erreur de connexion."); }
             }
 
             function genererBarres(data, cles, labels) {
@@ -198,7 +214,7 @@ async def home():
                                     <input type="number" step="0.01" class="cote-input" id="${idInput}" placeholder="Ex: 1.85" oninput="calculerEV('${idInput}', ${proba})">
                                 </div>
                                 <div id="badge_${cle}">
-                                    <span class="value-badge value-empty">En attente de cote</span>
+                                    <span class="value-badge value-empty">En attente</span>
                                 </div>
                             </div>
                         </div>
@@ -212,7 +228,7 @@ async def home():
                 let badgeDiv = document.getElementById(`badge_${inputId.replace('cote_', '')}`);
                 
                 if (!cote || cote < 1) {
-                    badgeDiv.innerHTML = `<span class="value-badge value-empty">En attente de cote</span>`;
+                    badgeDiv.innerHTML = `<span class="value-badge value-empty">En attente</span>`;
                     return;
                 }
 
@@ -220,30 +236,78 @@ async def home():
                 let ev = (probaDecimale * cote) - 1;
 
                 if (ev > 0) {
-                    badgeDiv.innerHTML = `<span class="value-badge value-yes">✅ VALUE BET (+${(ev*100).toFixed(1)}% EV)</span>`;
+                    badgeDiv.innerHTML = `<span class="value-badge value-yes">✅ VALUE (+${(ev*100).toFixed(1)}%)</span>`;
                 } else {
-                    badgeDiv.innerHTML = `<span class="value-badge value-no">❌ Pas de Value (${(ev*100).toFixed(1)}% EV)</span>`;
+                    badgeDiv.innerHTML = `<span class="value-badge value-no">❌ No Value (${(ev*100).toFixed(1)}%)</span>`;
                 }
             }
 
             async function sauvegarderPrediction() {
                 if(!currentMatchId) return;
-                
-                // On envoie les probabilités calculées au serveur
                 const pCorners = currentDataC.analyse_corners.probabilite_plus_de_9_5;
                 const pCartons = currentDataK.analyse_cartons.probabilite_plus_de_4_5;
                 
                 try {
                     const response = await fetch(`/sauvegarder-prediction/${currentMatchId}?p_corners=${pCorners}&p_cartons=${pCartons}`, { method: 'POST' });
                     const result = await response.json();
+                    alert(result.erreur ? "Erreur : " + result.erreur : "✅ " + result.message);
+                } catch (e) { alert("Erreur de connexion."); }
+            }
+
+            // --- GESTION DE L'HISTORIQUE ---
+            async function toggleHistorique() {
+                const histPage = document.getElementById('historiquePage');
+                const analysePage = document.getElementById('analysePage');
+                const btn = document.getElementById('btnHist');
+
+                if (histPage.style.display === 'block') {
+                    histPage.style.display = 'none';
+                    analysePage.style.display = 'block';
+                    btn.innerText = "📜 Voir l'historique";
+                } else {
+                    histPage.style.display = 'block';
+                    analysePage.style.display = 'none';
+                    btn.innerText = "⬅️ Retour à l'analyse";
+                    await chargerHistorique();
+                }
+            }
+
+            async function chargerHistorique() {
+                const container = document.getElementById('listeHistorique');
+                container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Chargement...</p>';
+                
+                try {
+                    const response = await fetch('/api/historique');
+                    const historique = await response.json();
                     
-                    if(result.erreur) {
-                        alert("Erreur : " + result.erreur);
-                    } else {
-                        alert("✅ " + result.message);
+                    if (historique.erreur) {
+                        container.innerHTML = `<p style="color:red;">Erreur: ${historique.erreur}</p>`;
+                        return;
                     }
+                    
+                    if (historique.length === 0) {
+                        container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Aucune analyse sauvegardée pour le moment.</p>';
+                        return;
+                    }
+
+                    container.innerHTML = '';
+                    historique.forEach(h => {
+                        let marcheLabel = h.marche === 'corners' ? '📐 Corners' : '🟨 Cartons';
+                        container.innerHTML += `
+                            <div class="history-item">
+                                <div class="history-info">
+                                    <h4>${h.match}</h4>
+                                    <p>${marcheLabel} | Ligne: ${h.ligne} | ${h.date}</p>
+                                </div>
+                                <div class="history-proba">
+                                    <span>${h.probabilite}%</span>
+                                    <small>Proba</small>
+                                </div>
+                            </div>
+                        `;
+                    });
                 } catch (e) {
-                    alert("Erreur de connexion.");
+                    container.innerHTML = '<p style="color:red;">Erreur de connexion.</p>';
                 }
             }
         </script>
