@@ -14,7 +14,13 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-engine = create_engine(DATABASE_URL) if DATABASE_URL else None
+# ⚠️ LES 2 OPTIONS AJOUTÉES SONT ICI (pool_pre_ping et pool_recycle)
+engine = create_engine(
+    DATABASE_URL, 
+    pool_pre_ping=True, 
+    pool_recycle=300
+) if DATABASE_URL else None
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine) if engine else None
 
 if engine:
@@ -24,7 +30,7 @@ if engine:
 async def home():
     return {"message": "ORION est en ligne", "version": "0.1.0", "statut": "vivant"}
 
-# (Tes autres routes /sync-matches et /sync-stats sont à garder ici)
+# (Tes autres routes /sync-matches, /sync-stats et /init-competitions sont à garder ici)
 # ... [Je les omets pour faire court, mais garde-les dans ton fichier]
 
 # NOUVELLE VERSION DU CERVEAU : Calcul des vraies moyennes
@@ -34,12 +40,10 @@ async def predict_corners(match_id_local: int):
     
     db = SessionLocal()
     try:
-        # 1. On récupère le match à analyser
         match = db.query(Match).filter(Match.id == match_id_local).first()
         if not match:
             return {"erreur": "Match introuvable dans la base."}
 
-        # 2. On calcule la moyenne de corners de l'équipe à domicile
         stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
             (Match.equipe_domicile == match.equipe_domicile) | (Match.equipe_exterieur == match.equipe_domicile)
         ).all()
@@ -56,7 +60,6 @@ async def predict_corners(match_id_local: int):
 
         moyenne_dom = (total_corners_dom / nb_matchs_dom) if nb_matchs_dom > 0 else 5.5
 
-        # 3. On calcule la moyenne de corners de l'équipe à l'extérieur
         stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
             (Match.equipe_domicile == match.equipe_exterieur) | (Match.equipe_exterieur == match.equipe_exterieur)
         ).all()
@@ -73,7 +76,6 @@ async def predict_corners(match_id_local: int):
 
         moyenne_ext = (total_corners_ext / nb_matchs_ext) if nb_matchs_ext > 0 else 4.0
 
-        # 4. On applique la Loi de Poisson
         lambda_total = moyenne_dom + moyenne_ext
         proba_plus_10 = 1 - poisson.cdf(9, lambda_total)
         proba_plus_9 = 1 - poisson.cdf(8, lambda_total)
