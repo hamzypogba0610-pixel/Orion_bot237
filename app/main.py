@@ -14,20 +14,13 @@ import hashlib
 
 app = FastAPI(title="ORION", version="0.1.0")
 
-# --- CONNEXION À LA BASE DE DONNÉES ---
 DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-engine = create_engine(
-    DATABASE_URL, 
-    pool_pre_ping=True, 
-    pool_recycle=300
-) if DATABASE_URL else None
-
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300) if DATABASE_URL else None
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine) if engine else None
 
-# --- LA NOUVELLE INTERFACE PRO (DASHBOARD) ---
 @app.get("/", response_class=HTMLResponse)
 async def home():
     html_content = """
@@ -40,105 +33,82 @@ async def home():
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
         <style>
             :root {
-                --bg-dark: #0f172a;
-                --bg-card: #1e293b;
-                --text-main: #f8fafc;
-                --text-muted: #94a3b8;
-                --accent: #10b981;
-                --accent-hover: #059669;
-                --border: #334155;
+                --bg-dark: #0f172a; --bg-card: #1e293b; --text-main: #f8fafc; --text-muted: #94a3b8;
+                --accent: #10b981; --accent-hover: #059669; --border: #334155; --danger: #ef4444;
             }
             * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
             body { background-color: var(--bg-dark); color: var(--text-main); padding: 20px; display: flex; justify-content: center; min-height: 100vh; }
             .container { width: 100%; max-width: 500px; }
             
-            /* Header */
-            .header { text-align: center; margin-bottom: 30px; margin-top: 20px; }
-            .header h1 { font-size: 28px; font-weight: 800; letter-spacing: 1px; color: var(--accent); display: flex; align-items: center; justify-content: center; gap: 10px; }
+            .header { text-align: center; margin-bottom: 25px; margin-top: 10px; }
+            .header h1 { font-size: 28px; font-weight: 800; color: var(--accent); display: flex; align-items: center; justify-content: center; gap: 10px; }
             .header p { color: var(--text-muted); font-size: 14px; margin-top: 5px; }
 
-            /* Input Card */
             .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); margin-bottom: 20px; }
-            .input-group { display: flex; flex-direction: column; gap: 12px; }
-            label { font-size: 13px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-            input { width: 100%; padding: 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-dark); color: white; font-size: 16px; transition: 0.3s; }
-            input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2); }
-            button { width: 100%; padding: 14px; border: none; border-radius: 10px; background: var(--accent); color: #000; font-size: 16px; font-weight: 800; cursor: pointer; transition: 0.2s; display: flex; justify-content: center; align-items: center; gap: 8px; }
-            button:hover { background: var(--accent-hover); transform: translateY(-2px); }
-            button:active { transform: translateY(0); }
+            .input-group { display: flex; flex-direction: column; gap: 15px; }
+            label { font-size: 13px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+            input { width: 100%; padding: 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-dark); color: white; font-size: 16px; }
+            input:focus { outline: none; border-color: var(--accent); }
+            button { width: 100%; padding: 14px; border: none; border-radius: 10px; background: var(--accent); color: #000; font-size: 16px; font-weight: 800; cursor: pointer; transition: 0.2s; }
+            button:hover { background: var(--accent-hover); }
 
-            /* Results Section */
             #resultats { display: none; animation: fadeIn 0.5s ease-in-out; }
             @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
             
-            .match-title { text-align: center; font-size: 20px; font-weight: 800; margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #1e293b, #0f172a); border-radius: 12px; border: 1px solid var(--border); }
-            
-            .grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
-            .market-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; }
+            .match-title { text-align: center; font-size: 18px; font-weight: 800; margin-bottom: 15px; padding: 15px; background: linear-gradient(135deg, #1e293b, #0f172a); border-radius: 12px; border: 1px solid var(--border); }
+            .market-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 15px; }
             .market-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
-            .market-title { font-size: 18px; font-weight: 600; }
-            .market-total { font-size: 14px; color: var(--accent); font-weight: 800; background: rgba(16, 185, 129, 0.1); padding: 4px 10px; border-radius: 20px; }
+            .market-title { font-size: 16px; font-weight: 600; }
+            .market-total { font-size: 13px; color: var(--accent); font-weight: 800; background: rgba(16, 185, 129, 0.1); padding: 4px 10px; border-radius: 20px; }
             
-            /* Probability Bars */
-            .prob-row { margin-bottom: 15px; }
+            .prob-row { margin-bottom: 15px; background: var(--bg-dark); padding: 10px; border-radius: 8px; }
             .prob-labels { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
             .prob-label { color: var(--text-muted); }
             .prob-value { font-weight: 800; }
-            .bar-bg { width: 100%; height: 8px; background: var(--bg-dark); border-radius: 4px; overflow: hidden; }
+            .bar-bg { width: 100%; height: 6px; background: #000; border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
             .bar-fill { height: 100%; border-radius: 4px; transition: width 1s ease-out; }
             
-            .loading { display: none; text-align: center; margin-top: 20px; }
-            .spinner { width: 30px; height: 30px; border: 3px solid rgba(255,255,255,0.1); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px auto; }
-            @keyframes spin { to { transform: rotate(360deg); } }
+            .value-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 800; margin-top: 5px; }
+            .value-yes { background-color: rgba(16, 185, 129, 0.2); color: var(--accent); border: 1px solid var(--accent); }
+            .value-no { background-color: rgba(239, 68, 68, 0.2); color: var(--danger); border: 1px solid var(--danger); }
         </style>
     </head>
     <body>
         <div class="container">
-            <!-- Header -->
             <div class="header">
-                <h1><span style="font-size: 32px;">⚽</span> ORION</h1>
+                <h1>⚽ ORION</h1>
                 <p>Football Analytics Engine</p>
             </div>
 
-            <!-- Input Card -->
             <div class="card">
                 <div class="input-group">
-                    <label>ID du Match (Base locale)</label>
-                    <input type="number" id="matchId" placeholder="Ex: 1 (Sassuolo vs Lazio)">
-                    <button onclick="analyserMatch()" id="btnAnalyser">
-                        🧠 Analyser le match
-                    </button>
+                    <div>
+                        <label>ID du Match</label>
+                        <input type="number" id="matchId" placeholder="Ex: 1">
+                    </div>
+                    <div>
+                        <label>Cote proposée (Bookmaker)</label>
+                        <input type="number" step="0.01" id="coteInput" placeholder="Ex: 1.85">
+                    </div>
+                    <button onclick="analyserMatch()">🧠 Analyser la Value</button>
                 </div>
             </div>
 
-            <!-- Loading -->
-            <div id="loading" class="loading">
-                <div class="spinner"></div>
-                <p style="color: var(--text-muted); font-size: 14px;">Calcul des probabilités...</p>
-            </div>
-
-            <!-- Results -->
             <div id="resultats">
                 <div class="match-title" id="matchTitle"></div>
-                
-                <div class="grid">
-                    <!-- Carte Corners -->
-                    <div class="market-card">
-                        <div class="market-header">
-                            <span class="market-title">📐 Corners</span>
-                            <span class="market-total" id="totalCorners"></span>
-                        </div>
-                        <div id="cornersProbs"></div>
+                <div class="market-card">
+                    <div class="market-header">
+                        <span class="market-title">📐 Corners</span>
+                        <span class="market-total" id="totalCorners"></span>
                     </div>
-
-                    <!-- Carte Cartons -->
-                    <div class="market-card">
-                        <div class="market-header">
-                            <span class="market-title">🟨 Cartons</span>
-                            <span class="market-total" id="totalCartons"></span>
-                        </div>
-                        <div id="cartonsProbs"></div>
+                    <div id="cornersProbs"></div>
+                </div>
+                <div class="market-card">
+                    <div class="market-header">
+                        <span class="market-title">🟨 Cartons</span>
+                        <span class="market-total" id="totalCartons"></span>
                     </div>
+                    <div id="cartonsProbs"></div>
                 </div>
             </div>
         </div>
@@ -146,67 +116,63 @@ async def home():
         <script>
             async function analyserMatch() {
                 const matchId = document.getElementById('matchId').value;
-                if(!matchId) { alert("Veuillez entrer un ID de match."); return; }
-                
-                // UI updates
-                document.getElementById('btnAnalyser').style.display = 'none';
-                document.getElementById('loading').style.display = 'block';
+                const cote = parseFloat(document.getElementById('coteInput').value);
+                if(!matchId) { alert("Veuillez entrer un ID."); return; }
+                if(!cote || cote < 1) { alert("Veuillez entrer une cote valide (ex: 1.85)."); return; }
+
                 document.getElementById('resultats').style.display = 'none';
 
                 try {
-                    const resCorners = await fetch(`/predict-corners/${matchId}`);
-                    const dataCorners = await resCorners.json();
-                    
-                    const resCartons = await fetch(`/predict-cards/${matchId}`);
-                    const dataCartons = await resCartons.json();
+                    const resC = await fetch(`/predict-corners/${matchId}`);
+                    const dataC = await resC.json();
+                    const resK = await fetch(`/predict-cards/${matchId}`);
+                    const dataK = await resK.json();
 
-                    if(dataCorners.erreur || dataCartons.erreur) {
-                        alert("Erreur : Match introuvable ou données manquantes.");
-                        return resetUI();
-                    }
+                    if(dataC.erreur || dataK.erreur) { alert("Match introuvable."); return; }
 
-                    // Remplissage des données
-                    document.getElementById('matchTitle').innerText = dataCorners.match;
-                    document.getElementById('totalCorners').innerText = `Moyenne: ${dataCorners.analyse_corners.total_attendu}`;
-                    document.getElementById('totalCartons').innerText = `Moyenne: ${dataCartons.analyse_cartons.total_attendu}`;
+                    document.getElementById('matchTitle').innerText = dataC.match;
+                    document.getElementById('totalCorners').innerText = `Moy: ${dataC.analyse_corners.total_attendu}`;
+                    document.getElementById('totalCartons').innerText = `Moy: ${dataK.analyse_cartons.total_attendu}`;
 
-                    // Génération des barres de probabilité
-                    document.getElementById('cornersProbs').innerHTML = genererBarres(dataCorners.analyse_corners, ['probabilite_plus_de_8_5', 'probabilite_plus_de_9_5'], ['+8.5 Corners', '+9.5 Corners']);
-                    document.getElementById('cartonsProbs').innerHTML = genererBarres(dataCartons.analyse_cartons, ['probabilite_plus_de_3_5', 'probabilite_plus_de_4_5'], ['+3.5 Cartons', '+4.5 Cartons']);
+                    // Génération avec calcul de Value
+                    document.getElementById('cornersProbs').innerHTML = genererBarres(dataC.analyse_corners, ['probabilite_plus_de_8_5', 'probabilite_plus_de_9_5'], ['+8.5 Corners', '+9.5 Corners'], cote);
+                    document.getElementById('cartonsProbs').innerHTML = genererBarres(dataK.analyse_cartons, ['probabilite_plus_de_3_5', 'probabilite_plus_de_4_5'], ['+3.5 Cartons', '+4.5 Cartons'], cote);
 
                     document.getElementById('resultats').style.display = 'block';
                 } catch (e) {
-                    alert("Erreur de connexion avec le serveur.");
-                } finally {
-                    resetUI();
+                    alert("Erreur de connexion.");
                 }
             }
 
-            function genererBarres(data, cles, labels) {
+            function genererBarres(data, cles, labels, cote) {
                 let html = '';
                 cles.forEach((cle, index) => {
                     let proba = data[cle];
-                    // Couleur dynamique selon la probabilité
-                    let couleur = proba > 60 ? '#10b981' : (proba > 40 ? '#f59e0b' : '#ef4444');
+                    let probaDecimale = proba / 100;
+                    let ev = (probaDecimale * cote) - 1; // Formule magique EV
+                    
+                    let couleurBarre = proba > 60 ? '#10b981' : (proba > 40 ? '#f59e0b' : '#ef4444');
+                    
+                    // Badge Value Bet
+                    let badgeHTML = '';
+                    if (ev > 0) {
+                        badgeHTML = `<span class="value-badge value-yes">✅ VALUE BET (+${(ev*100).toFixed(1)}% EV)</span>`;
+                    } else {
+                        badgeHTML = `<span class="value-badge value-no">❌ Pas de Value (${(ev*100).toFixed(1)}% EV)</span>`;
+                    }
                     
                     html += `
                         <div class="prob-row">
                             <div class="prob-labels">
                                 <span class="prob-label">${labels[index]}</span>
-                                <span class="prob-value" style="color: ${couleur}">${proba}%</span>
+                                <span class="prob-value" style="color: ${couleurBarre}">${proba}%</span>
                             </div>
-                            <div class="bar-bg">
-                                <div class="bar-fill" style="width: ${proba}%; background-color: ${couleur};"></div>
-                            </div>
+                            <div class="bar-bg"><div class="bar-fill" style="width: ${proba}%; background-color: ${couleurBarre};"></div></div>
+                            ${badgeHTML}
                         </div>
                     `;
                 });
                 return html;
-            }
-
-            function resetUI() {
-                document.getElementById('btnAnalyser').style.display = 'flex';
-                document.getElementById('loading').style.display = 'none';
             }
         </script>
     </body>
@@ -214,7 +180,6 @@ async def home():
     """
     return HTMLResponse(content=html_content)
 
-# --- ROUTES API (INCHANGÉES) ---
 @app.get("/init-competitions")
 async def init_competitions():
     if not SessionLocal: return {"erreur": "Pas de BDD"}
