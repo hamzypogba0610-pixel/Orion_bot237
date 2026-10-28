@@ -4,7 +4,7 @@ import httpx
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.db_models import Base, Competition, Match, MatchStat
-from datetime import datetime
+from datetime import datetime, timedelta
 from scipy.stats import poisson
 import asyncio
 
@@ -56,7 +56,7 @@ async def init_competitions():
     finally:
         db.close()
 
-# 2. La grosse machine pour tout synchroniser d'un coup
+# 2. Tout synchroniser d'un coup par date
 @app.get("/sync-tout/{date_recherche}")
 async def sync_tout(date_recherche: str):
     api_key = os.getenv("API_FOOTBALL_KEY")
@@ -217,7 +217,7 @@ async def predict_corners(match_id_local: int):
     finally:
         db.close()
 
-# 4. NOUVELLE PORTE : Synchroniser les 10 derniers matchs d'une équipe
+# 4. Synchroniser une équipe par plage de dates
 @app.get("/sync-equipe/{equipe_id_api}")
 async def sync_equipe(equipe_id_api: int):
     api_key = os.getenv("API_FOOTBALL_KEY")
@@ -225,15 +225,20 @@ async def sync_equipe(equipe_id_api: int):
     
     db = SessionLocal()
     try:
-        # On demande les 10 derniers matchs de l'équipe
-        url = f"https://v3.football.api-sports.io/fixtures?team={equipe_id_api}&last=10"
+        # On calcule la date d'il y a 30 jours et aujourd'hui
+        aujourd_hui = datetime.now().strftime("%Y-%m-%d")
+        il_y_a_30_jours = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+
+        # On demande les matchs de l'équipe sur cette période
+        url = f"https://v3.football.api-sports.io/fixtures?team={equipe_id_api}&from={il_y_a_30_jours}&to={aujourd_hui}"
         headers = {"x-apisports-key": api_key}
         
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=headers)
         data = response.json()
         
-        if data.get("results", 0) == 0: return {"message": "Aucun match trouvé pour cette équipe."}
+        if data.get("results", 0) == 0: 
+            return {"message": f"Aucun match trouvé pour l'équipe {equipe_id_api} entre le {il_y_a_30_jours} et le {aujourd_hui}."}
 
         top_leagues = [39, 140, 135, 61, 78]
         matchs_ajoutes = 0
@@ -243,7 +248,6 @@ async def sync_equipe(equipe_id_api: int):
             id_ligue = m["league"]["id"]
             if id_ligue not in top_leagues: continue
             
-            # On ne traite que les matchs terminés
             if m["fixture"]["status"]["short"] != "FT": continue
 
             id_match_api = m["fixture"]["id"]
@@ -308,7 +312,7 @@ async def sync_equipe(equipe_id_api: int):
                         
                     await asyncio.sleep(0.5)
 
-        return {"message": f"Succès pour l'équipe {equipe_id_api} ! {matchs_ajoutes} matchs et {stats_ajoutees} stats ajoutés."}
+        return {"message": f"Succès ! {matchs_ajoutes} matchs et {stats_ajoutees} stats ajoutés pour l'équipe {equipe_id_api} (période du {il_y_a_30_jours} au {aujourd_hui})."}
     except Exception as e:
         db.rollback()
         return {"erreur": str(e)}
