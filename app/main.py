@@ -216,3 +216,17 @@ async def predict_corners(match_id_local: int):
         return {"erreur": str(e)}
     finally:
         db.close()
+
+# 4. NOUVELLE PORTE : Tester les stats d'une équipe sur une saison
+@app.get("/test-stats-saison/{equipe_id}/{ligue_id}/{saison}")
+async def test_stats_saison(equipe_id: int, ligue_id: int, saison: int):
+    api_key = os.getenv("API_FOOTBALL_KEY")
+    if not api_key: return {"erreur": "Clé introuvable"}
+    
+    url = f"https://v3.football.api-sports.io/teams/statistics?team={equipe_id}&league={ligue_id}&season={saison}"
+    headers = {"x-apisports-key": api_key}
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers)
+        
+    return response.json()
