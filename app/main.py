@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 import os
 import httpx
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 from app.db_models import Base, Competition, Match, MatchStat
 from datetime import datetime
@@ -24,43 +24,71 @@ if engine:
 async def home():
     return {"message": "ORION est en ligne", "version": "0.1.0", "statut": "vivant"}
 
-# (Toutes tes routes précédentes : init-competitions, sync-matches, sync-stats sont gardées ici...)
-# ... [Pour faire court, je ne les remets pas toutes ici, mais tu dois garder le fichier complet que tu as actuellement]
+# (Tes autres routes /sync-matches et /sync-stats sont à garder ici)
+# ... [Je les omets pour faire court, mais garde-les dans ton fichier]
 
-# NOUVELLE PORTE : Le Cerveau (Loi de Poisson)
+# NOUVELLE VERSION DU CERVEAU : Calcul des vraies moyennes
 @app.get("/predict-corners/{match_id_local}")
 async def predict_corners(match_id_local: int):
     if not SessionLocal: return {"erreur": "Pas de BDD"}
     
     db = SessionLocal()
     try:
-        # 1. On récupère le match dans notre base
+        # 1. On récupère le match à analyser
         match = db.query(Match).filter(Match.id == match_id_local).first()
         if not match:
             return {"erreur": "Match introuvable dans la base."}
-            
-        # 2. On définit les moyennes (Pour l'instant, on simule avec des chiffres fixes pour tester la formule)
-        # Plus tard, on les calculera avec l'historique réel des équipes.
-        moyenne_corners_domicile = 5.5
-        moyenne_corners_exterieur = 4.0
+
+        # 2. On calcule la moyenne de corners de l'équipe à domicile
+        stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
+            (Match.equipe_domicile == match.equipe_domicile) | (Match.equipe_exterieur == match.equipe_domicile)
+        ).all()
         
-        # La moyenne totale attendue (Lambda)
-        lambda_total = moyenne_corners_domicile + moyenne_corners_exterieur
+        total_corners_dom = 0
+        nb_matchs_dom = 0
+        for stat, m in stats_dom:
+            if m.equipe_domicile == match.equipe_domicile and stat.corners_domicile is not None:
+                total_corners_dom += stat.corners_domicile
+                nb_matchs_dom += 1
+            elif m.equipe_exterieur == match.equipe_domicile and stat.corners_exterieur is not None:
+                total_corners_dom += stat.corners_exterieur
+                nb_matchs_dom += 1
+
+        moyenne_dom = (total_corners_dom / nb_matchs_dom) if nb_matchs_dom > 0 else 5.5
+
+        # 3. On calcule la moyenne de corners de l'équipe à l'extérieur
+        stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
+            (Match.equipe_domicile == match.equipe_exterieur) | (Match.equipe_exterieur == match.equipe_exterieur)
+        ).all()
         
-        # 3. On calcule la probabilité d'avoir PLUS de 9.5 corners (donc 10 ou plus)
-        # En Poisson, P(X > 9.5) = 1 - P(X <= 9)
+        total_corners_ext = 0
+        nb_matchs_ext = 0
+        for stat, m in stats_ext:
+            if m.equipe_domicile == match.equipe_exterieur and stat.corners_domicile is not None:
+                total_corners_ext += stat.corners_domicile
+                nb_matchs_ext += 1
+            elif m.equipe_exterieur == match.equipe_exterieur and stat.corners_exterieur is not None:
+                total_corners_ext += stat.corners_exterieur
+                nb_matchs_ext += 1
+
+        moyenne_ext = (total_corners_ext / nb_matchs_ext) if nb_matchs_ext > 0 else 4.0
+
+        # 4. On applique la Loi de Poisson
+        lambda_total = moyenne_dom + moyenne_ext
         proba_plus_10 = 1 - poisson.cdf(9, lambda_total)
-        
-        # On calcule aussi pour une autre ligne (ex: plus de 8.5)
         proba_plus_9 = 1 - poisson.cdf(8, lambda_total)
 
         return {
             "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
+            "donnees_utilisees": {
+                "matchs_domicile_analyses": nb_matchs_dom,
+                "matchs_exterieur_analyses": nb_matchs_ext
+            },
             "analyse_corners": {
-                "moyenne_attendue_domicile": moyenne_corners_domicile,
-                "moyenne_attendue_exterieur": moyenne_corners_exterieur,
-                "total_attendu": lambda_total,
-                "probabilite_plus_de_9_5": round(proba_plus_10 * 100, 2), # En pourcentage
+                "moyenne_reelle_domicile": round(moyenne_dom, 2),
+                "moyenne_reelle_exterieur": round(moyenne_ext, 2),
+                "total_attendu": round(lambda_total, 2),
+                "probabilite_plus_de_9_5": round(proba_plus_10 * 100, 2),
                 "probabilite_plus_de_8_5": round(proba_plus_9 * 100, 2)
             }
         }
