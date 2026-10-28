@@ -37,7 +37,7 @@ async def home():
                 --accent: #10b981; --accent-hover: #059669; --border: #334155; --danger: #ef4444; --blue: #3b82f6;
             }
             * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
-            body { background-color: var(--bg-dark); color: var(--text-main); padding: 20px; display: flex; justify-content: center; min-height: 100vh; }
+            body { background-color: var(--bg-dark); color: var(--text-main); padding: 20px; padding-bottom: 80px; display: flex; justify-content: center; min-height: 100vh; }
             .container { width: 100%; max-width: 500px; }
             
             .header { text-align: center; margin-bottom: 25px; margin-top: 10px; }
@@ -53,10 +53,15 @@ async def home():
             button:hover { background: var(--accent-hover); }
             .btn-save { background-color: var(--blue); color: white; margin-top: 15px; }
             .btn-save:hover { background-color: #2563eb; }
-            .btn-history { background-color: transparent; border: 1px solid var(--text-muted); color: var(--text-muted); margin-bottom: 20px; }
-            .btn-history:hover { background-color: rgba(255,255,255,0.1); color: white; }
 
-            #resultats, #historiquePage { display: none; animation: fadeIn 0.5s ease-in-out; }
+            /* Navigation en bas */
+            .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background-color: var(--bg-card); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 10px 0; z-index: 100; box-shadow: 0 -5px 15px rgba(0,0,0,0.3); }
+            .nav-item { display: flex; flex-direction: column; align-items: center; color: var(--text-muted); cursor: pointer; transition: 0.2s; font-size: 12px; font-weight: 600; gap: 4px; }
+            .nav-item.active { color: var(--accent); }
+            .nav-item span.icon { font-size: 20px; }
+
+            .page { display: none; animation: fadeIn 0.4s ease-in-out; }
+            .page.active { display: block; }
             @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
             
             .match-title { text-align: center; font-size: 18px; font-weight: 800; margin-bottom: 15px; padding: 15px; background: linear-gradient(135deg, #1e293b, #0f172a); border-radius: 12px; border: 1px solid var(--border); }
@@ -94,10 +99,8 @@ async def home():
                 <p>Football Analytics Engine</p>
             </div>
 
-            <button class="btn-history" onclick="toggleHistorique()" id="btnHist">📜 Voir l'historique</button>
-
-            <!-- SECTION ANALYSE -->
-            <div id="analysePage">
+            <!-- PAGE ANALYSE -->
+            <div id="page-analyse" class="page active">
                 <div class="card">
                     <div class="input-group">
                         <div>
@@ -110,7 +113,7 @@ async def home():
                     </div>
                 </div>
 
-                <div id="resultats">
+                <div id="resultats" style="display: none;">
                     <div class="match-title" id="matchTitle"></div>
                     <div class="market-card">
                         <div class="market-header">
@@ -130,16 +133,50 @@ async def home():
                 </div>
             </div>
 
-            <!-- SECTION HISTORIQUE -->
-            <div id="historiquePage">
+            <!-- PAGE HISTORIQUE -->
+            <div id="page-historique" class="page">
                 <div id="listeHistorique"></div>
             </div>
+
+            <!-- PAGE PARAMETRES (Placeholder pour la suite) -->
+            <div id="page-parametres" class="page">
+                <div class="card" style="text-align: center;">
+                    <p style="color: var(--text-muted); margin-bottom: 10px;">🚧 En construction 🚧</p>
+                    <p style="font-size: 14px;">Bientôt, vous pourrez configurer ici la météo et le style de jeu.</p>
+                </div>
+            </div>
         </div>
+
+        <!-- BARRE DE NAVIGATION -->
+        <nav class="bottom-nav">
+            <div class="nav-item active" onclick="switchTab('analyse')" id="nav-analyse">
+                <span class="icon">🧠</span> Analyse
+            </div>
+            <div class="nav-item" onclick="switchTab('historique')" id="nav-historique">
+                <span class="icon">📜</span> Historique
+            </div>
+            <div class="nav-item" onclick="switchTab('parametres')" id="nav-parametres">
+                <span class="icon">⚙️</span> Paramètres
+            </div>
+        </nav>
 
         <script>
             let currentMatchId = null;
             let currentDataC = null;
             let currentDataK = null;
+
+            // GESTION DES ONGLETS
+            function switchTab(tabName) {
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                
+                document.getElementById(`page-${tabName}`).classList.add('active');
+                document.getElementById(`nav-${tabName}`).classList.add('active');
+
+                if(tabName === 'historique') {
+                    chargerHistorique();
+                }
+            }
 
             async function chargerMatchs() {
                 try {
@@ -254,24 +291,6 @@ async def home():
                 } catch (e) { alert("Erreur de connexion."); }
             }
 
-            // --- GESTION DE L'HISTORIQUE ---
-            async function toggleHistorique() {
-                const histPage = document.getElementById('historiquePage');
-                const analysePage = document.getElementById('analysePage');
-                const btn = document.getElementById('btnHist');
-
-                if (histPage.style.display === 'block') {
-                    histPage.style.display = 'none';
-                    analysePage.style.display = 'block';
-                    btn.innerText = "📜 Voir l'historique";
-                } else {
-                    histPage.style.display = 'block';
-                    analysePage.style.display = 'none';
-                    btn.innerText = "⬅️ Retour à l'analyse";
-                    await chargerHistorique();
-                }
-            }
-
             async function chargerHistorique() {
                 const container = document.getElementById('listeHistorique');
                 container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Chargement...</p>';
@@ -315,6 +334,7 @@ async def home():
     </html>
     """
     return HTMLResponse(content=html_content)
+    
 
 @app.get("/api/matchs")
 async def api_matchs():
