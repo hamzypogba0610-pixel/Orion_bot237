@@ -123,12 +123,11 @@ async def import_csv(url: str):
     
     db = SessionLocal()
     try:
-        # 1. On cherche l'ID réel de la Serie A dans notre base
         serie_a = db.query(Competition).filter(Competition.nom == "Serie A").first()
         if not serie_a:
             return {"erreur": "La Serie A n'est pas dans la base. Va d'abord sur /init-competitions."}
         
-        competition_id = serie_a.id # On utilise le vrai ID de Neon !
+        competition_id = serie_a.id 
 
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
@@ -150,8 +149,9 @@ async def import_csv(url: str):
             if not row.get('HomeTeam') or not row.get('AwayTeam') or not row.get('Date'):
                 continue
                 
+            # ON LIMITE LE NOMBRE ICI POUR QU'IL RESTE PETIT (Modulo 2 milliards)
             fake_id_str = f"{row['HomeTeam']}{row['AwayTeam']}{row['Date']}"
-            fake_id = int(hashlib.md5(fake_id_str.encode()).hexdigest()[:8], 16)
+            fake_id = int(hashlib.md5(fake_id_str.encode()).hexdigest()[:8], 16) % 2000000000
             
             match_existant = db.query(Match).filter(Match.id_source_apifootball == fake_id).first()
             if match_existant:
@@ -166,7 +166,7 @@ async def import_csv(url: str):
                     date_obj = datetime.now()
 
             nouveau_match = Match(
-                competition_id=competition_id, # On utilise le bon ID ici
+                competition_id=competition_id,
                 date_heure=date_obj,
                 equipe_domicile=row['HomeTeam'],
                 equipe_exterieur=row['AwayTeam'],
