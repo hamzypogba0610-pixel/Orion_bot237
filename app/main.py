@@ -26,14 +26,13 @@ engine = create_engine(
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine) if engine else None
 
-if engine:
-    Base.metadata.create_all(bind=engine)
+# ⚠️ La ligne "Base.metadata.create_all(bind=engine)" a été retirée ici pour éviter le blocage.
 
 @app.get("/")
 async def home():
     return {"message": "ORION est en ligne", "version": "0.1.0", "statut": "vivant"}
 
-# 1. Remplir les compétitions (si ce n'est pas déjà fait)
+# 1. Remplir les compétitions
 @app.get("/init-competitions")
 async def init_competitions():
     if not SessionLocal: return {"erreur": "Pas de BDD"}
@@ -70,7 +69,6 @@ async def predict_corners(match_id_local: int):
         if not match:
             return {"erreur": "Match introuvable dans la base."}
 
-        # Calcul des moyennes pour l'équipe à domicile
         stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
             (Match.equipe_domicile == match.equipe_domicile) | (Match.equipe_exterieur == match.equipe_domicile)
         ).all()
@@ -86,7 +84,6 @@ async def predict_corners(match_id_local: int):
 
         moyenne_dom = (total_corners_dom / nb_matchs_dom) if nb_matchs_dom > 0 else 5.5
 
-        # Calcul des moyennes pour l'équipe à l'extérieur
         stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
             (Match.equipe_domicile == match.equipe_exterieur) | (Match.equipe_exterieur == match.equipe_exterieur)
         ).all()
@@ -125,43 +122,37 @@ async def predict_corners(match_id_local: int):
     finally:
         db.close()
 
-# 3. LA NOUVELLE PORTE MAGIQUE : Importer un fichier CSV
+# 3. LA PORTE MAGIQUE : Importer un fichier CSV
 @app.get("/import-csv/")
 async def import_csv(url: str):
     if not SessionLocal: return {"erreur": "Pas de BDD"}
     
     db = SessionLocal()
     try:
-        # 1. Télécharger le fichier CSV
         async with httpx.AsyncClient() as client:
             response = await client.get(url)
         
         if response.status_code != 200:
             return {"erreur": "Impossible de télécharger le fichier CSV."}
             
-        # 2. Lire le fichier ligne par ligne
         csv_file = io.StringIO(response.text)
         reader = csv.DictReader(csv_file)
         
         matchs_ajoutes = 0
         stats_ajoutees = 0
-        competition_id = 135 # On force sur la Serie A (Italie) pour ce test
+        competition_id = 135 
 
         for row in reader:
-            # On vérifie que les données essentielles existent
             if not row.get('HomeTeam') or not row.get('AwayTeam') or not row.get('Date'):
                 continue
                 
-            # On crée un faux ID unique pour la base de données (basé sur les noms et la date)
             fake_id_str = f"{row['HomeTeam']}{row['AwayTeam']}{row['Date']}"
             fake_id = int(hashlib.md5(fake_id_str.encode()).hexdigest()[:8], 16)
             
-            # On vérifie si le match n'est pas déjà dans la base
             match_existant = db.query(Match).filter(Match.id_source_apifootball == fake_id).first()
             if match_existant:
                 continue
 
-            # On formate la date (le CSV donne JJ/MM/AAAA)
             try:
                 date_obj = datetime.strptime(row['Date'], "%d/%m/%Y")
             except:
@@ -170,7 +161,6 @@ async def import_csv(url: str):
                 except:
                     date_obj = datetime.now()
 
-            # On crée le match
             nouveau_match = Match(
                 competition_id=competition_id,
                 date_heure=date_obj,
@@ -186,7 +176,6 @@ async def import_csv(url: str):
             db.refresh(nouveau_match)
             matchs_ajoutes += 1
 
-            # On crée les stats (Corners et Cartons)
             if row.get('HC') and row.get('AC'):
                 nouvelle_stat = MatchStat(
                     match_id=nouveau_match.id,
