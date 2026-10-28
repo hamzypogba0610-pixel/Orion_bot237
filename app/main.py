@@ -47,8 +47,8 @@ async def home():
             .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); margin-bottom: 20px; }
             .input-group { display: flex; flex-direction: column; gap: 15px; }
             label { font-size: 13px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
-            input[type="number"] { width: 100%; padding: 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-dark); color: white; font-size: 16px; }
-            input[type="number"]:focus { outline: none; border-color: var(--accent); }
+            input[type="number"], select { width: 100%; padding: 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-dark); color: white; font-size: 16px; appearance: none; -webkit-appearance: none; }
+            input[type="number"]:focus, select:focus { outline: none; border-color: var(--accent); }
             button { width: 100%; padding: 14px; border: none; border-radius: 10px; background: var(--accent); color: #000; font-size: 16px; font-weight: 800; cursor: pointer; transition: 0.2s; }
             button:hover { background: var(--accent-hover); }
 
@@ -85,8 +85,10 @@ async def home():
             <div class="card">
                 <div class="input-group">
                     <div>
-                        <label>ID du Match</label>
-                        <input type="number" id="matchId" placeholder="Ex: 1">
+                        <label>Sélectionner un match</label>
+                        <select id="matchId">
+                            <option value="">Chargement des matchs...</option>
+                        </select>
                     </div>
                     <button onclick="analyserMatch()">🧠 Analyser le match</button>
                 </div>
@@ -112,9 +114,35 @@ async def home():
         </div>
 
         <script>
+            // Charger la liste des matchs au démarrage
+            async function chargerMatchs() {
+                try {
+                    const response = await fetch('/api/matchs');
+                    const matchs = await response.json();
+                    const select = document.getElementById('matchId');
+                    select.innerHTML = '<option value="">-- Choisir un match --</option>';
+                    
+                    if(matchs.erreur) {
+                        select.innerHTML = '<option value="">Erreur de chargement</option>';
+                        return;
+                    }
+                    
+                    matchs.forEach(m => {
+                        let option = document.createElement('option');
+                        option.value = m.id;
+                        option.text = `${m.nom} (${m.date})`;
+                        select.appendChild(option);
+                    });
+                } catch (e) {
+                    console.error("Erreur chargement matchs:", e);
+                }
+            }
+
+            window.onload = chargerMatchs;
+
             async function analyserMatch() {
                 const matchId = document.getElementById('matchId').value;
-                if(!matchId) { alert("Veuillez entrer un ID."); return; }
+                if(!matchId) { alert("Veuillez sélectionner un match."); return; }
 
                 document.getElementById('resultats').style.display = 'none';
 
@@ -144,7 +172,7 @@ async def home():
                 cles.forEach((cle, index) => {
                     let proba = data[cle];
                     let couleurBarre = proba > 60 ? '#10b981' : (proba > 40 ? '#f59e0b' : '#ef4444');
-                    let idInput = `cote_${cle}`; // ID unique pour chaque case
+                    let idInput = `cote_${cle}`;
                     
                     html += `
                         <div class="prob-row">
@@ -386,6 +414,26 @@ async def import_csv(url: str):
         return {"message": f"Importation réussie ! {matchs_ajoutes} matchs et {stats_ajoutees} stats ajoutés."}
     except Exception as e:
         db.rollback()
+        return {"erreur": str(e)}
+    finally:
+        db.close()
+
+@app.get("/api/matchs")
+async def api_matchs():
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        # On récupère les 50 derniers matchs
+        matchs = db.query(Match).order_by(Match.date_heure.desc()).limit(50).all()
+        resultat = []
+        for m in matchs:
+            resultat.append({
+                "id": m.id,
+                "nom": f"{m.equipe_domicile} vs {m.equipe_exterieur}",
+                "date": m.date_heure.strftime("%d/%m/%Y") if m.date_heure else "Date inconnue"
+            })
+        return resultat
+    except Exception as e:
         return {"erreur": str(e)}
     finally:
         db.close()
