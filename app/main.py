@@ -65,3 +65,23 @@ async def test_matchs():
         matchs_propres.append(fiche)
         
     return matchs_propres
+
+# NOUVELLE PORTE : Les statistiques d'un match précis
+@app.get("/test-stats/{match_id}")
+async def test_stats(match_id: int):
+    api_key = os.getenv("API_FOOTBALL_KEY")
+    if not api_key:
+        return {"erreur": "Clé introuvable"}
+
+    url = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={match_id}"
+    headers = {"x-apisports-key": api_key}
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers)
+        
+    data = response.json()
+    
+    if data.get("results", 0) == 0:
+        return {"message": "Aucune statistique trouvée pour ce match (le match n'a peut-être pas encore commencé)."}
+
+    return data["response"]
