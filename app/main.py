@@ -61,13 +61,11 @@ async def predict_corners(match_id_local: int):
     db = SessionLocal()
     try:
         match = db.query(Match).filter(Match.id == match_id_local).first()
-        if not match:
-            return {"erreur": "Match introuvable dans la base."}
+        if not match: return {"erreur": "Match introuvable."}
 
         stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
             (Match.equipe_domicile == match.equipe_domicile) | (Match.equipe_exterieur == match.equipe_domicile)
         ).all()
-        
         total_corners_dom, nb_matchs_dom = 0, 0
         for stat, m in stats_dom:
             if m.equipe_domicile == match.equipe_domicile and stat.corners_domicile is not None:
@@ -76,13 +74,11 @@ async def predict_corners(match_id_local: int):
             elif m.equipe_exterieur == match.equipe_domicile and stat.corners_exterieur is not None:
                 total_corners_dom += stat.corners_exterieur
                 nb_matchs_dom += 1
-
         moyenne_dom = (total_corners_dom / nb_matchs_dom) if nb_matchs_dom > 0 else 5.5
 
         stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
             (Match.equipe_domicile == match.equipe_exterieur) | (Match.equipe_exterieur == match.equipe_exterieur)
         ).all()
-        
         total_corners_ext, nb_matchs_ext = 0, 0
         for stat, m in stats_ext:
             if m.equipe_domicile == match.equipe_exterieur and stat.corners_domicile is not None:
@@ -91,25 +87,73 @@ async def predict_corners(match_id_local: int):
             elif m.equipe_exterieur == match.equipe_exterieur and stat.corners_exterieur is not None:
                 total_corners_ext += stat.corners_exterieur
                 nb_matchs_ext += 1
-
         moyenne_ext = (total_corners_ext / nb_matchs_ext) if nb_matchs_ext > 0 else 4.0
 
         lambda_total = moyenne_dom + moyenne_ext
-        proba_plus_10 = 1 - poisson.cdf(9, lambda_total)
-        proba_plus_9 = 1 - poisson.cdf(8, lambda_total)
-
         return {
             "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
-            "donnees_utilisees": {
-                "matchs_domicile_analyses": nb_matchs_dom,
-                "matchs_exterieur_analyses": nb_matchs_ext
-            },
+            "donnees_utilisees": {"matchs_domicile": nb_matchs_dom, "matchs_exterieur": nb_matchs_ext},
             "analyse_corners": {
-                "moyenne_reelle_domicile": round(moyenne_dom, 2),
-                "moyenne_reelle_exterieur": round(moyenne_ext, 2),
+                "moyenne_domicile": round(moyenne_dom, 2), "moyenne_exterieur": round(moyenne_ext, 2),
                 "total_attendu": round(lambda_total, 2),
-                "probabilite_plus_de_9_5": round(proba_plus_10 * 100, 2),
-                "probabilite_plus_de_8_5": round(proba_plus_9 * 100, 2)
+                "probabilite_plus_de_9_5": round((1 - poisson.cdf(9, lambda_total)) * 100, 2),
+                "probabilite_plus_de_8_5": round((1 - poisson.cdf(8, lambda_total)) * 100, 2)
+            }
+        }
+    except Exception as e:
+        return {"erreur": str(e)}
+    finally:
+        db.close()
+
+# NOUVELLE PORTE : Le cerveau des Cartons
+@app.get("/predict-cards/{match_id_local}")
+async def predict_cards(match_id_local: int):
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        match = db.query(Match).filter(Match.id == match_id_local).first()
+        if not match: return {"erreur": "Match introuvable."}
+
+        # Moyennes Cartons Domicile
+        stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
+            (Match.equipe_domicile == match.equipe_domicile) | (Match.equipe_exterieur == match.equipe_domicile)
+        ).all()
+        total_jaunes_dom, nb_matchs_dom = 0, 0
+        for stat, m in stats_dom:
+            if m.equipe_domicile == match.equipe_domicile and stat.cartons_jaunes_domicile is not None:
+                total_jaunes_dom += stat.cartons_jaunes_domicile
+                nb_matchs_dom += 1
+            elif m.equipe_exterieur == match.equipe_domicile and stat.cartons_jaunes_exterieur is not None:
+                total_jaunes_dom += stat.cartons_jaunes_exterieur
+                nb_matchs_dom += 1
+        moyenne_dom = (total_jaunes_dom / nb_matchs_dom) if nb_matchs_dom > 0 else 2.0
+
+        # Moyennes Cartons Extérieur
+        stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
+            (Match.equipe_domicile == match.equipe_exterieur) | (Match.equipe_exterieur == match.equipe_exterieur)
+        ).all()
+        total_jaunes_ext, nb_matchs_ext = 0, 0
+        for stat, m in stats_ext:
+            if m.equipe_domicile == match.equipe_exterieur and stat.cartons_jaunes_domicile is not None:
+                total_jaunes_ext += stat.cartons_jaunes_domicile
+                nb_matchs_ext += 1
+            elif m.equipe_exterieur == match.equipe_exterieur and stat.cartons_jaunes_exterieur is not None:
+                total_jaunes_ext += stat.cartons_jaunes_exterieur
+                nb_matchs_ext += 1
+        moyenne_ext = (total_jaunes_ext / nb_matchs_ext) if nb_matchs_ext > 0 else 2.0
+
+        lambda_total = moyenne_dom + moyenne_ext
+        
+        return {
+            "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
+            "donnees_utilisees": {"matchs_domicile": nb_matchs_dom, "matchs_exterieur": nb_matchs_ext},
+            "analyse_cartons": {
+                "moyenne_jaunes_domicile": round(moyenne_dom, 2),
+                "moyenne_jaunes_exterieur": round(moyenne_ext, 2),
+                "total_attendu": round(lambda_total, 2),
+                "probabilite_plus_de_3_5": round((1 - poisson.cdf(3, lambda_total)) * 100, 2),
+                "probabilite_plus_de_4_5": round((1 - poisson.cdf(4, lambda_total)) * 100, 2),
+                "probabilite_plus_de_5_5": round((1 - poisson.cdf(5, lambda_total)) * 100, 2)
             }
         }
     except Exception as e:
@@ -120,42 +164,30 @@ async def predict_corners(match_id_local: int):
 @app.get("/import-csv/")
 async def import_csv(url: str):
     if not SessionLocal: return {"erreur": "Pas de BDD"}
-    
     db = SessionLocal()
     try:
         serie_a = db.query(Competition).filter(Competition.nom == "Serie A").first()
-        if not serie_a:
-            return {"erreur": "La Serie A n'est pas dans la base. Va d'abord sur /init-competitions."}
-        
+        if not serie_a: return {"erreur": "Serie A non trouvée."}
         competition_id = serie_a.id 
 
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        }
-        
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=headers, follow_redirects=True)
         
-        if response.status_code != 200:
-            return {"erreur": f"Impossible de télécharger. Code HTTP : {response.status_code}"}
+        if response.status_code != 200: return {"erreur": f"Erreur HTTP : {response.status_code}"}
             
         csv_file = io.StringIO(response.text)
         reader = csv.DictReader(csv_file)
         
-        matchs_ajoutes = 0
-        stats_ajoutees = 0
+        matchs_ajoutes, stats_ajoutees = 0, 0
 
         for row in reader:
-            if not row.get('HomeTeam') or not row.get('AwayTeam') or not row.get('Date'):
-                continue
+            if not row.get('HomeTeam') or not row.get('AwayTeam') or not row.get('Date'): continue
                 
-            # ON LIMITE LE NOMBRE ICI POUR QU'IL RESTE PETIT (Modulo 2 milliards)
             fake_id_str = f"{row['HomeTeam']}{row['AwayTeam']}{row['Date']}"
             fake_id = int(hashlib.md5(fake_id_str.encode()).hexdigest()[:8], 16) % 2000000000
             
-            match_existant = db.query(Match).filter(Match.id_source_apifootball == fake_id).first()
-            if match_existant:
-                continue
+            if db.query(Match).filter(Match.id_source_apifootball == fake_id).first(): continue
 
             try:
                 date_obj = datetime.strptime(row['Date'], "%d/%m/%Y")
@@ -166,11 +198,8 @@ async def import_csv(url: str):
                     date_obj = datetime.now()
 
             nouveau_match = Match(
-                competition_id=competition_id,
-                date_heure=date_obj,
-                equipe_domicile=row['HomeTeam'],
-                equipe_exterieur=row['AwayTeam'],
-                statut="FT",
+                competition_id=competition_id, date_heure=date_obj,
+                equipe_domicile=row['HomeTeam'], equipe_exterieur=row['AwayTeam'], statut="FT",
                 id_source_apifootball=fake_id,
                 score_domicile=int(row['FTHG']) if row.get('FTHG') and row['FTHG'].isdigit() else None,
                 score_exterieur=int(row['FTAG']) if row.get('FTAG') and row['FTAG'].isdigit() else None
@@ -182,8 +211,7 @@ async def import_csv(url: str):
 
             if row.get('HC') and row.get('AC'):
                 nouvelle_stat = MatchStat(
-                    match_id=nouveau_match.id,
-                    source_api="csv-football-data",
+                    match_id=nouveau_match.id, source_api="csv-football-data",
                     corners_domicile=int(row['HC']) if row['HC'].isdigit() else 0,
                     corners_exterieur=int(row['AC']) if row['AC'].isdigit() else 0,
                     cartons_jaunes_domicile=int(row['HY']) if row.get('HY') and row['HY'].isdigit() else 0,
@@ -196,10 +224,7 @@ async def import_csv(url: str):
                 stats_ajoutees += 1
 
         db.commit()
-        return {
-            "message": f"Importation réussie ! {matchs_ajoutes} matchs et {stats_ajoutees} fiches de stats ajoutés.",
-            "competition": "Serie A (ID interne: " + str(competition_id) + ")"
-        }
+        return {"message": f"Importation réussie ! {matchs_ajoutes} matchs et {stats_ajoutees} stats ajoutés."}
     except Exception as e:
         db.rollback()
         return {"erreur": str(e)}
