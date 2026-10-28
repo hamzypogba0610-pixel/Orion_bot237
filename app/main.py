@@ -128,7 +128,7 @@ async def home():
                     const select = document.getElementById('matchId');
                     select.innerHTML = '<option value="">-- Choisir un match --</option>';
                     
-                    if(matchs.erreur) {
+                    if(matchs.erreur || !Array.isArray(matchs)) {
                         select.innerHTML = '<option value="">Erreur de chargement</option>';
                         return;
                     }
@@ -229,8 +229,12 @@ async def home():
             async function sauvegarderPrediction() {
                 if(!currentMatchId) return;
                 
+                // On envoie les probabilités calculées au serveur
+                const pCorners = currentDataC.analyse_corners.probabilite_plus_de_9_5;
+                const pCartons = currentDataK.analyse_cartons.probabilite_plus_de_4_5;
+                
                 try {
-                    const response = await fetch(`/sauvegarder-prediction/${currentMatchId}`, { method: 'POST' });
+                    const response = await fetch(`/sauvegarder-prediction/${currentMatchId}?p_corners=${pCorners}&p_cartons=${pCartons}`, { method: 'POST' });
                     const result = await response.json();
                     
                     if(result.erreur) {
@@ -248,44 +252,254 @@ async def home():
     """
     return HTMLResponse(content=html_content)
 
-@app.post("/sauvegarder-prediction/{match_id_local}")
-async def sauvegarder_prediction(match_id_local: int):
+@app.get("/api/matchs")
+async def api_matchs():
     if not SessionLocal: return {"erreur": "Pas de BDD"}
     db = SessionLocal()
     try:
-        # On récupère les données qu'on vient de calculer
-        dataC = await predict_corners(match_id_local)
-        dataK = await predict_cards(match_id_local)
-        
-        if "erreur" in dataC or "erreur" in dataK:
-            return {"erreur": "Impossible de calculer les probabilités."}
+        # On récupère les 50 derniers matchs
+        matchs = db.query(Match).order_by(Match.date_heure.desc()).limit(50).all()
+        resultat = []
+        for m in matchs:
+            resultat.append({
+                "id": m.id,
+                "nom": f"{m.equipe_domicile} vs {m.equipe_exterieur}",
+                "date": m.date_heure.strftime("%d/%m/%Y") if m.date_heure else "Date inconnue"
+            })
+        return resultat
+    except Exception as e:
+        return {"erreur": str(e)}
+    finally:
+        db.close()
 
-        # On enregistre les prédictions Corners
-        p_corners = Prediction(
+@app.post("/sauvegarder-prediction/{match_id_local}")
+async def sauvegarder_prediction(match_id_local: int, p_corners: float = 0.0, p_cartons: float = 0.0):
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        # On enregistre la prédiction Corners
+        pred_c = Prediction(
             match_id=match_id_local,
             marche="corners",
             ligne=9.5,
-            probabilite_brute=dataC["analyse_corners"]["probabilite_plus_de_9_5"],
-            probabilite_calibree=dataC["analyse_corners"]["probabilite_plus_de_9_5"],
+            probabilite_brute=p_corners,
+            probabilite_calibree=p_corners,
             modele_version="poisson-v1.0",
             date_prediction=datetime.utcnow()
         )
-        db.add(p_corners)
+        db.add(pred_c)
 
-        # On enregistre les prédictions Cartons
-        p_cartons = Prediction(
+        # On enregistre la prédiction Cartons
+        pred_k = Prediction(
             match_id=match_id_local,
             marche="cartons",
             ligne=4.5,
-            probabilite_brute=dataK["analyse_cartons"]["probabilite_plus_de_4_5"],
-            probabilite_calibree=dataK["analyse_cartons"]["probabilite_plus_de_4_5"],
+            probabilite_brute=p_cartons,
+            probabilite_calibree=p_cartons,
             modele_version="poisson-v1.0",
             date_prediction=datetime.utcnow()
         )
-        db.add(p_cartons)
+        db.add(pred_k)
 
         db.commit()
-        return {"message": "Analyse sauvegardée dans la base de données avec succès !"}
+        return {"message": "Analyse sauvegardée avec succès dans l'historique !"}
+    except Exception as e:
+        db.rollback()
+        return {"erreur": str(e)}
+    finally:
+        db.close()
+
+@app.get("/init-competitions")
+async def init_competitions():
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        les_ligues = [
+            {"id_api": 39, "nom": "Premier League", "pays": "Angleterre"},
+            {"id_api": 140, "nom": "La Liga", "pays": "Espagne"},
+            {"id_api": 135, "nom": "Serie A", "pays": "Italie"},
+            {"id_api": 78, "nom": "Bundesliga", "pays": "Allemagne"},
+            {"id_api": 61, "nom": "Ligue 1", "pays": "France"}
+        ]
+        ajoutees = 0
+        for ligue in les_ligues:
+            existe = db.query(Competition).filter(Competition.id_source == ligue["id_api"]).first()
+            if not existe:
+                db.add(Competition(nom=ligue["nom"], pays=ligue["pays"], id_source=ligue["id_api"]))
+                ajoutees += 1
+        db.commit()
+        return {"message": f"{ajoutees} compétitions ajoutées."}
+    except Exception as e:
+        return {"erreur": str(e)}
+    finally:
+        db.close()
+
+@app.get("/predict-corners/{match_id_local}")
+async def predict_corners(match_id_local: int):
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        match = db.query(Match).filter(Match.id == match_id_local).first()
+        if not match: return {"erreur": "Match introuvable."}
+
+        stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
+            (Match.equipe_domicile == match.equipe_domicile) | (Match.equipe_exterieur == match.equipe_domicile)
+        ).all()
+        total_corners_dom, nb_matchs_dom = 0, 0
+        for stat, m in stats_dom:
+            if m.equipe_domicile == match.equipe_domicile and stat.corners_domicile is not None:
+                total_corners_dom += stat.corners_domicile
+                nb_matchs_dom += 1
+            elif m.equipe_exterieur == match.equipe_domicile and stat.corners_exterieur is not None:
+                total_corners_dom += stat.corners_exterieur
+                nb_matchs_dom += 1
+        moyenne_dom = (total_corners_dom / nb_matchs_dom) if nb_matchs_dom > 0 else 5.5
+
+        stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
+            (Match.equipe_domicile == match.equipe_exterieur) | (Match.equipe_exterieur == match.equipe_exterieur)
+        ).all()
+        total_corners_ext, nb_matchs_ext = 0, 0
+        for stat, m in stats_ext:
+            if m.equipe_domicile == match.equipe_exterieur and stat.corners_domicile is not None:
+                total_corners_ext += stat.corners_domicile
+                nb_matchs_ext += 1
+            elif m.equipe_exterieur == match.equipe_exterieur and stat.corners_exterieur is not None:
+                total_corners_ext += stat.corners_exterieur
+                nb_matchs_ext += 1
+        moyenne_ext = (total_corners_ext / nb_matchs_ext) if nb_matchs_ext > 0 else 4.0
+
+        lambda_total = moyenne_dom + moyenne_ext
+        return {
+            "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
+            "donnees_utilisees": {"matchs_domicile": nb_matchs_dom, "matchs_exterieur": nb_matchs_ext},
+            "analyse_corners": {
+                "moyenne_domicile": round(moyenne_dom, 2), "moyenne_exterieur": round(moyenne_ext, 2),
+                "total_attendu": round(lambda_total, 2),
+                "probabilite_plus_de_9_5": round((1 - poisson.cdf(9, lambda_total)) * 100, 2),
+                "probabilite_plus_de_8_5": round((1 - poisson.cdf(8, lambda_total)) * 100, 2)
+            }
+        }
+    except Exception as e:
+        return {"erreur": str(e)}
+    finally:
+        db.close()
+
+@app.get("/predict-cards/{match_id_local}")
+async def predict_cards(match_id_local: int):
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        match = db.query(Match).filter(Match.id == match_id_local).first()
+        if not match: return {"erreur": "Match introuvable."}
+
+        stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
+            (Match.equipe_domicile == match.equipe_domicile) | (Match.equipe_exterieur == match.equipe_domicile)
+        ).all()
+        total_jaunes_dom, nb_matchs_dom = 0, 0
+        for stat, m in stats_dom:
+            if m.equipe_domicile == match.equipe_domicile and stat.cartons_jaunes_domicile is not None:
+                total_jaunes_dom += stat.cartons_jaunes_domicile
+                nb_matchs_dom += 1
+            elif m.equipe_exterieur == match.equipe_domicile and stat.cartons_jaunes_exterieur is not None:
+                total_jaunes_dom += stat.cartons_jaunes_exterieur
+                nb_matchs_dom += 1
+        moyenne_dom = (total_jaunes_dom / nb_matchs_dom) if nb_matchs_dom > 0 else 2.0
+
+        stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
+            (Match.equipe_domicile == match.equipe_exterieur) | (Match.equipe_exterieur == match.equipe_exterieur)
+        ).all()
+        total_jaunes_ext, nb_matchs_ext = 0, 0
+        for stat, m in stats_ext:
+            if m.equipe_domicile == match.equipe_exterieur and stat.cartons_jaunes_domicile is not None:
+                total_jaunes_ext += stat.cartons_jaunes_domicile
+                nb_matchs_ext += 1
+            elif m.equipe_exterieur == match.equipe_exterieur and stat.cartons_jaunes_exterieur is not None:
+                total_jaunes_ext += stat.cartons_jaunes_exterieur
+                nb_matchs_ext += 1
+        moyenne_ext = (total_jaunes_ext / nb_matchs_ext) if nb_matchs_ext > 0 else 2.0
+
+        lambda_total = moyenne_dom + moyenne_ext
+        return {
+            "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
+            "donnees_utilisees": {"matchs_domicile": nb_matchs_dom, "matchs_exterieur": nb_matchs_ext},
+            "analyse_cartons": {
+                "moyenne_jaunes_domicile": round(moyenne_dom, 2),
+                "moyenne_jaunes_exterieur": round(moyenne_ext, 2),
+                "total_attendu": round(lambda_total, 2),
+                "probabilite_plus_de_3_5": round((1 - poisson.cdf(3, lambda_total)) * 100, 2),
+                "probabilite_plus_de_4_5": round((1 - poisson.cdf(4, lambda_total)) * 100, 2),
+                "probabilite_plus_de_5_5": round((1 - poisson.cdf(5, lambda_total)) * 100, 2)
+            }
+        }
+    except Exception as e:
+        return {"erreur": str(e)}
+    finally:
+        db.close()
+
+@app.get("/import-csv/")
+async def import_csv(url: str):
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        serie_a = db.query(Competition).filter(Competition.nom == "Serie A").first()
+        if not serie_a: return {"erreur": "Serie A non trouvée."}
+        competition_id = serie_a.id 
+
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers, follow_redirects=True)
+        
+        if response.status_code != 200: return {"erreur": f"Erreur HTTP : {response.status_code}"}
+            
+        csv_file = io.StringIO(response.text)
+        reader = csv.DictReader(csv_file)
+        
+        matchs_ajoutes, stats_ajoutees = 0, 0
+
+        for row in reader:
+            if not row.get('HomeTeam') or not row.get('AwayTeam') or not row.get('Date'): continue
+                
+            fake_id_str = f"{row['HomeTeam']}{row['AwayTeam']}{row['Date']}"
+            fake_id = int(hashlib.md5(fake_id_str.encode()).hexdigest()[:8], 16) % 2000000000
+            
+            if db.query(Match).filter(Match.id_source_apifootball == fake_id).first(): continue
+
+            try:
+                date_obj = datetime.strptime(row['Date'], "%d/%m/%Y")
+            except:
+                try:
+                    date_obj = datetime.strptime(row['Date'], "%d/%m/%y")
+                except:
+                    date_obj = datetime.now()
+
+            nouveau_match = Match(
+                competition_id=competition_id, date_heure=date_obj,
+                equipe_domicile=row['HomeTeam'], equipe_exterieur=row['AwayTeam'], statut="FT",
+                id_source_apifootball=fake_id,
+                score_domicile=int(row['FTHG']) if row.get('FTHG') and row['FTHG'].isdigit() else None,
+                score_exterieur=int(row['FTAG']) if row.get('FTAG') and row['FTAG'].isdigit() else None
+            )
+            db.add(nouveau_match)
+            db.commit()
+            db.refresh(nouveau_match)
+            matchs_ajoutes += 1
+
+            if row.get('HC') and row.get('AC'):
+                nouvelle_stat = MatchStat(
+                    match_id=nouveau_match.id, source_api="csv-football-data",
+                    corners_domicile=int(row['HC']) if row['HC'].isdigit() else 0,
+                    corners_exterieur=int(row['AC']) if row['AC'].isdigit() else 0,
+                    cartons_jaunes_domicile=int(row['HY']) if row.get('HY') and row['HY'].isdigit() else 0,
+                    cartons_jaunes_exterieur=int(row['AY']) if row.get('AY') and row['AY'].isdigit() else 0,
+                    cartons_rouges_domicile=int(row['HR']) if row.get('HR') and row['HR'].isdigit() else 0,
+                    cartons_rouges_exterieur=int(row['AR']) if row.get('AR') and row['AR'].isdigit() else 0,
+                    statut_validation="confirmé"
+                )
+                db.add(nouvelle_stat)
+                stats_ajoutees += 1
+
+        db.commit()
+        return {"message": f"Importation réussie ! {matchs_ajoutes} matchs et {stats_ajoutees} stats ajoutés."}
     except Exception as e:
         db.rollback()
         return {"erreur": str(e)}
