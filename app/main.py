@@ -612,3 +612,21 @@ async def api_historique():
         return {"erreur": str(e)}
     finally:
         db.close()
+
+from sqlalchemy import text
+
+@app.get("/update-schema")
+async def update_schema():
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        # On demande à PostgreSQL d'ajouter les colonnes si elles n'existent pas
+        db.execute(text("ALTER TABLE predictions ADD COLUMN IF NOT EXISTS arbitre VARCHAR;"))
+        db.execute(text("ALTER TABLE predictions ADD COLUMN IF NOT EXISTS arbitre_profil VARCHAR;"))
+        db.commit()
+        return {"message": "✅ Les colonnes 'arbitre' et 'arbitre_profil' ont été ajoutées à la table predictions !"}
+    except Exception as e:
+        db.rollback()
+        return {"erreur": str(e)}
+    finally:
+        db.close()
