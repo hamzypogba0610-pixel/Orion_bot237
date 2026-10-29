@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 import os
 import httpx
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from app.db_models import Base, Competition, Match, MatchStat, Prediction
 from datetime import datetime
@@ -47,8 +47,8 @@ async def home():
             .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); margin-bottom: 20px; }
             .input-group { display: flex; flex-direction: column; gap: 15px; }
             label { font-size: 13px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
-            input[type="number"], select { width: 100%; padding: 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-dark); color: white; font-size: 16px; appearance: none; }
-            input[type="number"]:focus, select:focus { outline: none; border-color: var(--accent); }
+            input[type="number"], input[type="text"], select { width: 100%; padding: 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-dark); color: white; font-size: 16px; appearance: none; }
+            input[type="number"]:focus, input[type="text"]:focus, select:focus { outline: none; border-color: var(--accent); }
             button { width: 100%; padding: 14px; border: none; border-radius: 10px; background: var(--accent); color: #000; font-size: 16px; font-weight: 800; cursor: pointer; transition: 0.2s; }
             button:hover { background: var(--accent-hover); }
             .btn-save { background-color: var(--blue); color: white; margin-top: 15px; }
@@ -138,11 +138,43 @@ async def home():
                 <div id="listeHistorique"></div>
             </div>
 
-            <!-- PAGE PARAMETRES (Placeholder pour la suite) -->
+            <!-- PAGE PARAMETRES -->
             <div id="page-parametres" class="page">
-                <div class="card" style="text-align: center;">
-                    <p style="color: var(--text-muted); margin-bottom: 10px;">🚧 En construction 🚧</p>
-                    <p style="font-size: 14px;">Bientôt, vous pourrez configurer ici la météo et le style de jeu.</p>
+                <div class="card">
+                    <h3 style="margin-bottom: 15px; color: var(--accent);">Contexte du match</h3>
+                    <div class="input-group">
+                        <div>
+                            <label>Météo</label>
+                            <select id="meteo">
+                                <option value="Sec">☀️ Sec</option>
+                                <option value="Pluie">🌧️ Pluie</option>
+                                <option value="Vent fort">💨 Vent fort</option>
+                                <option value="Neige">❄️ Neige</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>Style de l'adversaire</label>
+                            <select id="styleAdv">
+                                <option value="Équilibré">⚖️ Équilibré</option>
+                                <option value="Défensif">🛡️ Défensif</option>
+                                <option value="Offensif">⚔️ Offensif</option>
+                                <option value="Contre-attaque">⚡ Contre-attaque</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>Nom de l'arbitre</label>
+                            <input type="text" id="arbitre" placeholder="Ex: M. Oliver">
+                        </div>
+                        <div>
+                            <label>Profil de l'arbitre</label>
+                            <select id="arbitreProfil">
+                                <option value="Normal">Normal</option>
+                                <option value="Sévère">🟨 Sévère (beaucoup de cartons)</option>
+                                <option value="Laxiste">🟩 Laxiste (laisse jouer)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p style="font-size: 12px; color: var(--text-muted); margin-top: 15px; text-align: center;">Ces informations seront sauvegardées avec votre prochaine analyse.</p>
                 </div>
             </div>
         </div>
@@ -160,181 +192,181 @@ async def home():
             </div>
         </nav>
 
-        <script>
-            let currentMatchId = null;
-            let currentDataC = null;
-            let currentDataK = null;
+            <script>
+        let currentMatchId = null;
+        let currentDataC = null;
+        let currentDataK = null;
 
-            // GESTION DES ONGLETS
-            function switchTab(tabName) {
-                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        function switchTab(tabName) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            
+            document.getElementById(`page-${tabName}`).classList.add('active');
+            document.getElementById(`nav-${tabName}`).classList.add('active');
+
+            if(tabName === 'historique') chargerHistorique();
+        }
+
+        async function chargerMatchs() {
+            try {
+                const response = await fetch('/api/matchs');
+                const matchs = await response.json();
+                const select = document.getElementById('matchId');
+                select.innerHTML = '<option value="">-- Choisir un match --</option>';
                 
-                document.getElementById(`page-${tabName}`).classList.add('active');
-                document.getElementById(`nav-${tabName}`).classList.add('active');
-
-                if(tabName === 'historique') {
-                    chargerHistorique();
+                if(matchs.erreur || !Array.isArray(matchs)) {
+                    select.innerHTML = '<option value="">Erreur de chargement</option>';
+                    return;
                 }
-            }
+                
+                matchs.forEach(m => {
+                    let option = document.createElement('option');
+                    option.value = m.id;
+                    option.text = `${m.nom} (${m.date})`;
+                    select.appendChild(option);
+                });
+            } catch (e) { console.error(e); }
+        }
 
-            async function chargerMatchs() {
-                try {
-                    const response = await fetch('/api/matchs');
-                    const matchs = await response.json();
-                    const select = document.getElementById('matchId');
-                    select.innerHTML = '<option value="">-- Choisir un match --</option>';
-                    
-                    if(matchs.erreur || !Array.isArray(matchs)) {
-                        select.innerHTML = '<option value="">Erreur de chargement</option>';
-                        return;
-                    }
-                    
-                    matchs.forEach(m => {
-                        let option = document.createElement('option');
-                        option.value = m.id;
-                        option.text = `${m.nom} (${m.date})`;
-                        select.appendChild(option);
-                    });
-                } catch (e) { console.error(e); }
-            }
+        window.onload = chargerMatchs;
 
-            window.onload = chargerMatchs;
+        async function analyserMatch() {
+            const matchId = document.getElementById('matchId').value;
+            if(!matchId) { alert("Veuillez sélectionner un match."); return; }
 
-            async function analyserMatch() {
-                const matchId = document.getElementById('matchId').value;
-                if(!matchId) { alert("Veuillez sélectionner un match."); return; }
+            document.getElementById('resultats').style.display = 'none';
 
-                document.getElementById('resultats').style.display = 'none';
+            try {
+                const resC = await fetch(`/predict-corners/${matchId}`);
+                const dataC = await resC.json();
+                const resK = await fetch(`/predict-cards/${matchId}`);
+                const dataK = await resK.json();
 
-                try {
-                    const resC = await fetch(`/predict-corners/${matchId}`);
-                    const dataC = await resC.json();
-                    const resK = await fetch(`/predict-cards/${matchId}`);
-                    const dataK = await resK.json();
+                if(dataC.erreur || dataK.erreur) { alert("Match introuvable."); return; }
 
-                    if(dataC.erreur || dataK.erreur) { alert("Match introuvable."); return; }
+                currentMatchId = matchId;
+                currentDataC = dataC;
+                currentDataK = dataK;
 
-                    currentMatchId = matchId;
-                    currentDataC = dataC;
-                    currentDataK = dataK;
+                document.getElementById('matchTitle').innerText = dataC.match;
+                document.getElementById('totalCorners').innerText = `Moy: ${dataC.analyse_corners.total_attendu}`;
+                document.getElementById('totalCartons').innerText = `Moy: ${dataK.analyse_cartons.total_attendu}`;
 
-                    document.getElementById('matchTitle').innerText = dataC.match;
-                    document.getElementById('totalCorners').innerText = `Moy: ${dataC.analyse_corners.total_attendu}`;
-                    document.getElementById('totalCartons').innerText = `Moy: ${dataK.analyse_cartons.total_attendu}`;
+                document.getElementById('cornersProbs').innerHTML = genererBarres(dataC.analyse_corners, ['probabilite_plus_de_8_5', 'probabilite_plus_de_9_5'], ['+8.5 Corners', '+9.5 Corners']);
+                document.getElementById('cartonsProbs').innerHTML = genererBarres(dataK.analyse_cartons, ['probabilite_plus_de_3_5', 'probabilite_plus_de_4_5'], ['+3.5 Cartons', '+4.5 Cartons']);
 
-                    document.getElementById('cornersProbs').innerHTML = genererBarres(dataC.analyse_corners, ['probabilite_plus_de_8_5', 'probabilite_plus_de_9_5'], ['+8.5 Corners', '+9.5 Corners']);
-                    document.getElementById('cartonsProbs').innerHTML = genererBarres(dataK.analyse_cartons, ['probabilite_plus_de_3_5', 'probabilite_plus_de_4_5'], ['+3.5 Cartons', '+4.5 Cartons']);
+                document.getElementById('resultats').style.display = 'block';
+            } catch (e) { alert("Erreur de connexion."); }
+        }
 
-                    document.getElementById('resultats').style.display = 'block';
-                } catch (e) { alert("Erreur de connexion."); }
-            }
-
-            function genererBarres(data, cles, labels) {
-                let html = '';
-                cles.forEach((cle, index) => {
-                    let proba = data[cle];
-                    let couleurBarre = proba > 60 ? '#10b981' : (proba > 40 ? '#f59e0b' : '#ef4444');
-                    let idInput = `cote_${cle}`;
-                    
-                    html += `
-                        <div class="prob-row">
-                            <div class="prob-labels">
-                                <span class="prob-label">${labels[index]}</span>
-                                <span class="prob-value" style="color: ${couleurBarre}">${proba}%</span>
+        function genererBarres(data, cles, labels) {
+            let html = '';
+            cles.forEach((cle, index) => {
+                let proba = data[cle];
+                let couleurBarre = proba > 60 ? '#10b981' : (proba > 40 ? '#f59e0b' : '#ef4444');
+                let idInput = `cote_${cle}`;
+                
+                html += `
+                    <div class="prob-row">
+                        <div class="prob-labels">
+                            <span class="prob-label">${labels[index]}</span>
+                            <span class="prob-value" style="color: ${couleurBarre}">${proba}%</span>
+                        </div>
+                        <div class="bar-bg"><div class="bar-fill" style="width: ${proba}%; background-color: ${couleurBarre};"></div></div>
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                            <div>
+                                <span style="font-size: 12px; color: var(--text-muted);">Cote: </span>
+                                <input type="number" step="0.01" class="cote-input" id="${idInput}" placeholder="Ex: 1.85" oninput="calculerEV('${idInput}', ${proba})">
                             </div>
-                            <div class="bar-bg"><div class="bar-fill" style="width: ${proba}%; background-color: ${couleurBarre};"></div></div>
-                            
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
-                                <div>
-                                    <span style="font-size: 12px; color: var(--text-muted);">Cote: </span>
-                                    <input type="number" step="0.01" class="cote-input" id="${idInput}" placeholder="Ex: 1.85" oninput="calculerEV('${idInput}', ${proba})">
-                                </div>
-                                <div id="badge_${cle}">
-                                    <span class="value-badge value-empty">En attente</span>
-                                </div>
+                            <div id="badge_${cle}">
+                                <span class="value-badge value-empty">En attente</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            return html;
+        }
+
+        function calculerEV(inputId, proba) {
+            let cote = parseFloat(document.getElementById(inputId).value);
+            let badgeDiv = document.getElementById(`badge_${inputId.replace('cote_', '')}`);
+            
+            if (!cote || cote < 1) {
+                badgeDiv.innerHTML = `<span class="value-badge value-empty">En attente</span>`;
+                return;
+            }
+
+            let probaDecimale = proba / 100;
+            let ev = (probaDecimale * cote) - 1;
+
+            if (ev > 0) {
+                badgeDiv.innerHTML = `<span class="value-badge value-yes">✅ VALUE (+${(ev*100).toFixed(1)}%)</span>`;
+            } else {
+                badgeDiv.innerHTML = `<span class="value-badge value-no">❌ No Value (${(ev*100).toFixed(1)}%)</span>`;
+            }
+        }
+
+        async function sauvegarderPrediction() {
+            if(!currentMatchId) return;
+            const pCorners = currentDataC.analyse_corners.probabilite_plus_de_9_5;
+            const pCartons = currentDataK.analyse_cartons.probabilite_plus_de_4_5;
+            
+            const meteo = document.getElementById('meteo').value;
+            const styleAdv = document.getElementById('styleAdv').value;
+            const arbitre = document.getElementById('arbitre').value || "Non renseigné";
+            const arbitreProfil = document.getElementById('arbitreProfil').value;
+            
+            try {
+                const response = await fetch(`/sauvegarder-prediction/${currentMatchId}?p_corners=${pCorners}&p_cartons=${pCartons}&meteo=${meteo}&style_adv=${styleAdv}&arbitre=${arbitre}&arbitre_profil=${arbitreProfil}`, { method: 'POST' });
+                const result = await response.json();
+                alert(result.erreur ? "Erreur : " + result.erreur : "✅ " + result.message);
+            } catch (e) { alert("Erreur de connexion."); }
+        }
+
+        async function chargerHistorique() {
+            const container = document.getElementById('listeHistorique');
+            container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Chargement...</p>';
+            
+            try {
+                const response = await fetch('/api/historique');
+                const historique = await response.json();
+                
+                if (historique.erreur) {
+                    container.innerHTML = `<p style="color:red;">Erreur: ${historique.erreur}</p>`;
+                    return;
+                }
+                
+                if (historique.length === 0) {
+                    container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Aucune analyse sauvegardée.</p>';
+                    return;
+                }
+
+                container.innerHTML = '';
+                historique.forEach(h => {
+                    let marcheLabel = h.marche === 'corners' ? '📐 Corners' : '🟨 Cartons';
+                    container.innerHTML += `
+                        <div class="history-item">
+                            <div class="history-info">
+                                <h4>${h.match}</h4>
+                                <p>${marcheLabel} | Ligne: ${h.ligne} | ${h.date}</p>
+                            </div>
+                            <div class="history-proba">
+                                <span>${h.probabilite}%</span>
+                                <small>Proba</small>
                             </div>
                         </div>
                     `;
                 });
-                return html;
-            }
+            } catch (e) { container.innerHTML = '<p style="color:red;">Erreur de connexion.</p>'; }
+        }
+    </script>
+</body>
+</html>
+"""
+return HTMLResponse(content=html_content)
 
-            function calculerEV(inputId, proba) {
-                let cote = parseFloat(document.getElementById(inputId).value);
-                let badgeDiv = document.getElementById(`badge_${inputId.replace('cote_', '')}`);
-                
-                if (!cote || cote < 1) {
-                    badgeDiv.innerHTML = `<span class="value-badge value-empty">En attente</span>`;
-                    return;
-                }
-
-                let probaDecimale = proba / 100;
-                let ev = (probaDecimale * cote) - 1;
-
-                if (ev > 0) {
-                    badgeDiv.innerHTML = `<span class="value-badge value-yes">✅ VALUE (+${(ev*100).toFixed(1)}%)</span>`;
-                } else {
-                    badgeDiv.innerHTML = `<span class="value-badge value-no">❌ No Value (${(ev*100).toFixed(1)}%)</span>`;
-                }
-            }
-
-            async function sauvegarderPrediction() {
-                if(!currentMatchId) return;
-                const pCorners = currentDataC.analyse_corners.probabilite_plus_de_9_5;
-                const pCartons = currentDataK.analyse_cartons.probabilite_plus_de_4_5;
-                
-                try {
-                    const response = await fetch(`/sauvegarder-prediction/${currentMatchId}?p_corners=${pCorners}&p_cartons=${pCartons}`, { method: 'POST' });
-                    const result = await response.json();
-                    alert(result.erreur ? "Erreur : " + result.erreur : "✅ " + result.message);
-                } catch (e) { alert("Erreur de connexion."); }
-            }
-
-            async function chargerHistorique() {
-                const container = document.getElementById('listeHistorique');
-                container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Chargement...</p>';
-                
-                try {
-                    const response = await fetch('/api/historique');
-                    const historique = await response.json();
-                    
-                    if (historique.erreur) {
-                        container.innerHTML = `<p style="color:red;">Erreur: ${historique.erreur}</p>`;
-                        return;
-                    }
-                    
-                    if (historique.length === 0) {
-                        container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Aucune analyse sauvegardée pour le moment.</p>';
-                        return;
-                    }
-
-                    container.innerHTML = '';
-                    historique.forEach(h => {
-                        let marcheLabel = h.marche === 'corners' ? '📐 Corners' : '🟨 Cartons';
-                        container.innerHTML += `
-                            <div class="history-item">
-                                <div class="history-info">
-                                    <h4>${h.match}</h4>
-                                    <p>${marcheLabel} | Ligne: ${h.ligne} | ${h.date}</p>
-                                </div>
-                                <div class="history-proba">
-                                    <span>${h.probabilite}%</span>
-                                    <small>Proba</small>
-                                </div>
-                            </div>
-                        `;
-                    });
-                } catch (e) {
-                    container.innerHTML = '<p style="color:red;">Erreur de connexion.</p>';
-                }
-            }
-        </script>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)
-    
 
 @app.get("/api/matchs")
 async def api_matchs():
