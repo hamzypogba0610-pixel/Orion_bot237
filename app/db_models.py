@@ -48,6 +48,8 @@ class Prediction(Base):
     modele_version = Column(String)
     meteo = Column(String, nullable=True) # Saisie utilisateur
     style_adversaire = Column(String, nullable=True) # Saisie utilisateur
+    arbitre = Column(String, nullable=True)
+    arbitre_profil = Column(String, nullable=True)
     date_prediction = Column(DateTime, default=datetime.utcnow)
 
 class UserOdd(Base):
