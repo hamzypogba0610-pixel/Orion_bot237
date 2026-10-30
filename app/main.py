@@ -798,58 +798,36 @@ async def scan_today():
     if not SessionLocal: return {"erreur": "Pas de BDD"}
     db = SessionLocal()
     try:
-        # 1. On récupère les matchs du jour (statut NS = Not Started)
         matchs_du_jour = db.query(Match).filter(Match.date_heure >= datetime.utcnow().date()).all()
-        
-        if not matchs_du_jour: return {"message": "Aucun match à venir aujourd'hui dans la base."}
+        if not matchs_du_jour: return {"message": "Aucun match à venir aujourd'hui."}
 
         meilleures_options = []
 
-        # 2. On boucle sur les matchs (on se limite aux 15 premiers pour éviter le timeout)
-        for match in matchs_du_jour[:15]:
-            if match.statut == "FT": continue # On ignore ceux déjà terminés
+        for match in matchs_du_jour[:15]: # On limite à 15 matchs pour la vitesse
+            if match.statut == "FT": continue
 
-            # --- APPEL DES 2 MOTEURS ---
             try:
-                # Note : On réutilise les fonctions existantes pour faire simple
-                # Dans un vrai projet pro, on aurait factorisé le code
-                res_corners = await predict_ensemble(match.id, meteo="Sec", cote=1.85)
-                res_cartons = await predict_ensemble_cards(match.id, arbitre_profil="Normal")
+                # On appelle notre cerveau à 7 modèles
+                res = await predict_ensemble(match.id, meteo="Sec", cote=1.85)
                 
-                # 3. On vérifie si le match est fiable
-                if res_corners.get("fiabilite") and "HAUTE" in res_corners["fiabilite"]:
+                # On ne garde que les fiabilités HAUTES
+                if res.get("fiabilite") and "HAUTE" in res["fiabilite"]:
                     meilleures_options.append({
                         "match_id": match.id,
                         "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
                         "marche": "Corners (+9.5)",
-                        "probabilite": res_corners["ensemble_final"],
-                        "fiabilite": res_corners["fiabilite"],
-                        "score_confiance": res_corners["ensemble_final"] # Score pour trier
-                    })
-                
-                if res_cartons.get("fiabilite") and "HAUTE" in res_cartons["fiabilite"]:
-                    meilleures_options.append({
-                        "match_id": match.id,
-                        "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
-                        "marche": "Cartons (+4.5)",
-                        "probabilite": res_cartons["ensemble_final"],
-                        "fiabilite": res_cartons["fiabilite"],
-                        "score_confiance": res_cartons["ensemble_final"]
+                        "probabilite": res["ensemble_final"],
+                        "fiabilite": res["fiabilite"]
                     })
             except Exception:
-                continue # Si un match plante, on passe au suivant
+                continue
 
-        # 4. On trie les meilleures options (la plus grande probabilité en premier)
-        meilleures_options.sort(key=lambda x: x["score_confiance"], reverse=True)
-
-        # 5. On garde le Top 3
+        # On trie par probabilité décroissante
+        meilleures_options.sort(key=lambda x: x["probabilite"], reverse=True)
         top_3 = meilleures_options[:3]
 
-        if not top_3:
-            return {"message": "Aucun match avec une fiabilité HAUTE n'a été trouvé aujourd'hui."}
-
         return {
-            "message": f"Scan terminé ! {len(meilleures_options)} opportunités trouvées.",
+            "message": f"Scan terminé ! {len(meilleures_options)} opportunités fiables trouvées.",
             "top_3": top_3
         }
     except Exception as e:
