@@ -161,3 +161,31 @@ def calc_live_corners(moyenne_dom, moyenne_ext, minute_actuelle, corners_actuels
         "corners_manquants": corners_manquants,
         "probabilite_live": round(p_live, 2)
     }
+
+def calc_kalman_filter(historique_corners):
+    """
+    Filtre de Kalman 1D pour lisser la vraie moyenne d'une équipe.
+    Ignore les matchs aberrants (bruit) pour trouver la tendance de fond.
+    """
+    if not historique_corners:
+        return 0.0
+    if len(historique_corners) < 3:
+        return np.mean(historique_corners)
+
+    # Paramètres du filtre
+    x = historique_corners[0]  # Estimation initiale (premier match)
+    P = 1.0                    # Incertitude initiale
+    Q = 0.1                    # Bruit du processus (à quel point la vraie moyenne change)
+    R = 5.0                    # Bruit de la mesure (à quel point les matchs sont variables)
+
+    for z in historique_corners[1:]:
+        # 1. Prédiction
+        x_pred = x
+        P_pred = P + Q
+
+        # 2. Mise à jour (Correction avec la nouvelle observation)
+        K = P_pred / (P_pred + R)  # Gain de Kalman
+        x = x_pred + K * (z - x_pred)
+        P = (1 - K) * P_pred
+
+    return x
