@@ -790,6 +790,7 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
                 "hawkes": round(p_hawkes, 2)
             },
             "ensemble_final": round(moyenne_ensemble, 2),
+            "nb_modeles_proches": modeles_proches,
             "ecart_type": round(ecart_type, 2),
             "fiabilite": fiabilite,
             "shadow_market": shadow_result
@@ -804,47 +805,46 @@ async def scan_today():
     if not SessionLocal: return {"erreur": "Pas de BDD"}
     db = SessionLocal()
     try:
-        # On prend les 15 derniers matchs
-        matchs_du_jour = db.query(Match).order_by(Match.id.desc()).limit(15).all()
+        # On prend les 20 derniers matchs ajoutés
+        matchs_du_jour = db.query(Match).order_by(Match.id.desc()).limit(20).all()
         if not matchs_du_jour: return {"message": "Aucun match dans la base."}
 
-        diagnostic = []
+        opportunites = []
 
         for match in matchs_du_jour:
+            # On ignore les matchs terminés
             if match.statut == "FT": 
-                statut_match = "Terminé"
-            else:
-                statut_match = "À venir"
+                continue
                 
             try:
-                # On appelle le moteur 7 modèles
                 res = await predict_ensemble(match.id, meteo="Sec", cote=1.85)
                 
                 if "erreur" in res:
-                    diagnostic.append({
+                    continue
+                    
+                # On accepte HAUTE et MOYENNE
+                if "HAUTE" in res["fiabilite"] or "MOYENNE" in res["fiabilite"]:
+                    opportunites.append({
+                        "match_id": match.id,
                         "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
-                        "statut_match": statut_match,
-                        "erreur": res["erreur"]
-                    })
-                else:
-                    diagnostic.append({
-                        "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
-                        "statut_match": statut_match,
+                        "marche": "Corners (+9.5)",
                         "probabilite": res["ensemble_final"],
                         "fiabilite": res["fiabilite"],
-                        "ecart_type": res["ecart_type"],
-                        "nb_modeles_proches": res.get("nb_modeles_proches", "N/A")
+                        "ecart_type": res["ecart_type"]
                     })
             except Exception as e:
-                diagnostic.append({
-                    "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
-                    "statut_match": statut_match,
-                    "erreur": str(e)
-                })
+                continue
+
+        # On trie par probabilité décroissante
+        opportunites.sort(key=lambda x: x["probabilite"], reverse=True)
+        top_3 = opportunites[:3]
+
+        if not top_3:
+            return {"message": "Aucun match avec une fiabilité suffisante n'a été trouvé."}
 
         return {
-            "message": "Voici le diagnostic des 15 derniers matchs :",
-            "resultats": diagnostic
+            "message": f"Scan terminé ! {len(opportunites)} opportunités trouvées.",
+            "top_3": top_3
         }
     except Exception as e:
         return {"erreur": str(e)}
