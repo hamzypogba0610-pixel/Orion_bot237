@@ -248,39 +248,70 @@ async def predict_cards(match_id_local: int):
         match = db.query(Match).filter(Match.id == match_id_local).first()
         if not match: return {"erreur": "Match introuvable."}
 
-        stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
-            (Match.equipe_domicile == match.equipe_domicile) | (Match.equipe_exterieur == match.equipe_domicile)
-        ).all()
-        total_jaunes_dom, nb_matchs_dom = 0, 0
+        # 1. Moyenne globale du championnat (Cartons)
+        tous_les_matchs = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.competition_id == match.competition_id).all()
+        total_cartons_championnat, nb_matchs_championnat = 0, 0
+        for stat, m in tous_les_matchs:
+            if stat.cartons_jaunes_domicile is not None and stat.cartons_jaunes_exterieur is not None:
+                total_cartons_championnat += (stat.cartons_jaunes_domicile + stat.cartons_jaunes_exterieur)
+                nb_matchs_championnat += 1
+        moyenne_championnat = (total_cartons_championnat / nb_matchs_championnat) if nb_matchs_championnat > 0 else 4.5
+
+        # 2. Force d'attaque à domicile (Cartons pris par A)
+        stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.equipe_domicile == match.equipe_domicile).all()
+        cartons_dom, nb_matchs_dom = 0, 0
         for stat, m in stats_dom:
-            if m.equipe_domicile == match.equipe_domicile and stat.cartons_jaunes_domicile is not None:
-                total_jaunes_dom += stat.cartons_jaunes_domicile
+            if stat.cartons_jaunes_domicile is not None:
+                cartons_dom += stat.cartons_jaunes_domicile
                 nb_matchs_dom += 1
-            elif m.equipe_exterieur == match.equipe_domicile and stat.cartons_jaunes_exterieur is not None:
-                total_jaunes_dom += stat.cartons_jaunes_exterieur
-                nb_matchs_dom += 1
-        moyenne_dom = (total_jaunes_dom / nb_matchs_dom) if nb_matchs_dom > 0 else 2.0
+        moyenne_dom = (cartons_dom / nb_matchs_dom) if nb_matchs_dom > 0 else moyenne_championnat / 2
+        force_attaque_dom = moyenne_dom / (moyenne_championnat / 2)
 
-        stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
-            (Match.equipe_domicile == match.equipe_exterieur) | (Match.equipe_exterieur == match.equipe_exterieur)
-        ).all()
-        total_jaunes_ext, nb_matchs_ext = 0, 0
+        # 3. Force de défense à l'extérieur (Cartons subis par l'équipe B à l'extérieur)
+        stats_def_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.equipe_exterieur == match.equipe_exterieur).all()
+        cartons_subis_ext, nb_matchs_def_ext = 0, 0
+        for stat, m in stats_def_ext:
+            if stat.cartons_jaunes_domicile is not None: 
+                cartons_subis_ext += stat.cartons_jaunes_domicile
+                nb_matchs_def_ext += 1
+        moyenne_subis_ext = (cartons_subis_ext / nb_matchs_def_ext) if nb_matchs_def_ext > 0 else moyenne_championnat / 2
+        force_defense_ext = moyenne_subis_ext / (moyenne_championnat / 2)
+
+        # 4. Force d'attaque à l'extérieur (Cartons pris par B)
+        stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.equipe_exterieur == match.equipe_exterieur).all()
+        cartons_ext, nb_matchs_ext = 0, 0
         for stat, m in stats_ext:
-            if m.equipe_domicile == match.equipe_exterieur and stat.cartons_jaunes_domicile is not None:
-                total_jaunes_ext += stat.cartons_jaunes_domicile
+            if stat.cartons_jaunes_exterieur is not None:
+                cartons_ext += stat.cartons_jaunes_exterieur
                 nb_matchs_ext += 1
-            elif m.equipe_exterieur == match.equipe_exterieur and stat.cartons_jaunes_exterieur is not None:
-                total_jaunes_ext += stat.cartons_jaunes_exterieur
-                nb_matchs_ext += 1
-        moyenne_ext = (total_jaunes_ext / nb_matchs_ext) if nb_matchs_ext > 0 else 2.0
+        moyenne_ext = (cartons_ext / nb_matchs_ext) if nb_matchs_ext > 0 else moyenne_championnat / 2
+        force_attaque_ext = moyenne_ext / (moyenne_championnat / 2)
 
-        lambda_total = moyenne_dom + moyenne_ext
+        # 5. Force de défense à domicile (Cartons subis par l'équipe A à domicile)
+        stats_def_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.equipe_domicile == match.equipe_domicile).all()
+        cartons_subis_dom, nb_matchs_def_dom = 0, 0
+        for stat, m in stats_def_dom:
+            if stat.cartons_jaunes_exterieur is not None:
+                cartons_subis_dom += stat.cartons_jaunes_exterieur
+                nb_matchs_def_dom += 1
+        moyenne_subis_dom = (cartons_subis_dom / nb_matchs_def_dom) if nb_matchs_def_dom > 0 else moyenne_championnat / 2
+        force_defense_dom = moyenne_subis_dom / (moyenne_championnat / 2)
+
+        # 6. Calcul final
+        lambda_dom = (moyenne_championnat / 2) * force_attaque_dom * force_defense_ext
+        lambda_ext = (moyenne_championnat / 2) * force_attaque_ext * force_defense_dom
+        lambda_total = lambda_dom + lambda_ext
+
         return {
             "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
-            "donnees_utilisees": {"matchs_domicile": nb_matchs_dom, "matchs_exterieur": nb_matchs_ext},
+            "contexte": {
+                "moyenne_championnat": round(moyenne_championnat, 2),
+                "force_attaque_dom": round(force_attaque_dom, 2),
+                "force_defense_ext": round(force_defense_ext, 2)
+            },
             "analyse_cartons": {
-                "moyenne_jaunes_domicile": round(moyenne_dom, 2),
-                "moyenne_jaunes_exterieur": round(moyenne_ext, 2),
+                "attendu_domicile": round(lambda_dom, 2),
+                "attendu_exterieur": round(lambda_ext, 2),
                 "total_attendu": round(lambda_total, 2),
                 "probabilite_plus_de_3_5": round((1 - poisson.cdf(3, lambda_total)) * 100, 2),
                 "probabilite_plus_de_4_5": round((1 - poisson.cdf(4, lambda_total)) * 100, 2),
