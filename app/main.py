@@ -756,17 +756,17 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
         moyenne_ensemble = np.mean(liste_probas)
         ecart_type = np.std(liste_probas)
 
-        # Nouveau calcul de fiabilité : on compte combien de modèles sont proches de la moyenne
+        # NOUVEAU CALCUL DE LA FIABILITÉ
         modeles_proches = sum(1 for p in liste_probas if abs(p - moyenne_ensemble) <= 10)
-
+        
         if modeles_proches >= 6: 
-        fiabilite = "HAUTE ✅"
+            fiabilite = "HAUTE ✅"
         elif modeles_proches >= 4: 
-        fiabilite = "MOYENNE ⚠️"
+            fiabilite = "MOYENNE ⚠️"
         else: 
             fiabilite = "FAIBLE ❌ (Divergence)"
 
-        # 8. SHADOW MARKET (Le modèle Alien)
+        # 8. SHADOW MARKET
         shadow_result = calc_shadow_market(moyenne_ensemble, cote)
 
         return {
@@ -797,7 +797,7 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
     except Exception as e:
         return {"erreur": str(e)}
     finally:
-        db.close()
+        db.close() 
 
 @app.get("/scan-today")
 async def scan_today():
