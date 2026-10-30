@@ -617,3 +617,30 @@ async def predict_ft_score(match_id_local: int):
         return {"erreur": str(e)}
     finally:
         db.close()
+
+@app.get("/clean-duplicates")
+async def clean_duplicates():
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        from sqlalchemy import func
+        
+        # 1. On trouve les ID max à garder (le plus récent) pour chaque match et chaque marché
+        sous_requete = db.query(
+            Prediction.match_id, 
+            Prediction.marche, 
+            func.max(Prediction.id).label('max_id')
+        ).group_by(Prediction.match_id, Prediction.marche).subquery()
+
+        # 2. On supprime tout ce qui n'est pas dans cette liste (donc les anciens doublons)
+        nb_supprimes = db.query(Prediction).filter(
+            ~Prediction.id.in_(db.select(sous_requete.c.max_id))
+        ).delete(synchronize_session=False)
+        
+        db.commit()
+        return {"message": f"Ménage terminé ! {nb_supprimes} anciens doublons ont été supprimés de l'historique."}
+    except Exception as e:
+        db.rollback()
+        return {"erreur": str(e)}
+    finally:
+        db.close()
