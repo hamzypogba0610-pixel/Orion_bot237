@@ -154,7 +154,13 @@ async def init_competitions():
             {"id_api": 140, "nom": "La Liga", "pays": "Espagne"},
             {"id_api": 135, "nom": "Serie A", "pays": "Italie"},
             {"id_api": 78, "nom": "Bundesliga", "pays": "Allemagne"},
-            {"id_api": 61, "nom": "Ligue 1", "pays": "France"}
+            {"id_api": 61, "nom": "Ligue 1", "pays": "France"},
+            # NOUVEAUX CHAMPIONNATS
+            {"id_api": 88, "nom": "Eredivisie", "pays": "Pays-Bas"},
+            {"id_api": 94, "nom": "Primeira Liga", "pays": "Portugal"},
+            {"id_api": 144, "nom": "Pro League", "pays": "Belgique"},
+            {"id_api": 203, "nom": "Süper Lig", "pays": "Turquie"},
+            {"id_api": 197, "nom": "Super League", "pays": "Grèce"}
         ]
         ajoutees = 0
         for ligue in les_ligues:
