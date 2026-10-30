@@ -57,3 +57,32 @@ def calc_lambda_bayesien(corners_equipe, nb_matchs, moyenne_championnat, force_r
     # Plus force_rappel est grand, plus on fait confiance au championnat sur les petits échantillons
     moyenne_bayes = (corners_equipe + (force_rappel * (moyenne_championnat / 2))) / (nb_matchs + force_rappel)
     return moyenne_bayes
+
+# ==========================================
+# 3. LES MODÈLES "ALIENS"
+# ==========================================
+
+def calc_hawkes_impact(historique_corners):
+    """
+    Calcule le 'facteur d'auto-excitation' d'une équipe.
+    Si une équipe a une variance très élevée par rapport à sa moyenne,
+    cela signifie qu'elle fait des séries (des vagues).
+    """
+    if len(historique_corners) < 3:
+        return 1.0 # Pas assez de données, on ne change rien
+    
+    moyenne = np.mean(historique_corners)
+    variance = np.var(historique_corners)
+    
+    if moyenne == 0: return 1.0
+    
+    # Coefficient de dispersion
+    dispersion = variance / moyenne 
+    
+    # Si la dispersion est forte (ex: matchs à 2 corners et matchs à 12 corners),
+    # l'effet Hawkes est important.
+    # On crée un multiplicateur (ex: si dispersion = 2, multiplicateur = 1.1)
+    multiplicateur = 1.0 + (dispersion * 0.05)
+    
+    # On plafonne pour éviter des prédictions absurdes
+    return min(multiplicateur, 1.25) 
