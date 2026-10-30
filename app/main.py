@@ -39,9 +39,11 @@ async def home():
             * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
             body { background-color: var(--bg-dark); color: var(--text-main); padding: 20px; padding-bottom: 80px; display: flex; justify-content: center; min-height: 100vh; }
             .container { width: 100%; max-width: 500px; }
+            
             .header { text-align: center; margin-bottom: 25px; margin-top: 10px; }
             .header h1 { font-size: 28px; font-weight: 800; color: var(--accent); display: flex; align-items: center; justify-content: center; gap: 10px; }
             .header p { color: var(--text-muted); font-size: 14px; margin-top: 5px; }
+
             .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); margin-bottom: 20px; }
             .input-group { display: flex; flex-direction: column; gap: 15px; }
             label { font-size: 13px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
@@ -51,29 +53,35 @@ async def home():
             button:hover { background: var(--accent-hover); }
             .btn-save { background-color: var(--blue); color: white; margin-top: 15px; }
             .btn-save:hover { background-color: #2563eb; }
+
             .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background-color: var(--bg-card); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 10px 0; z-index: 100; box-shadow: 0 -5px 15px rgba(0,0,0,0.3); }
             .nav-item { display: flex; flex-direction: column; align-items: center; color: var(--text-muted); cursor: pointer; transition: 0.2s; font-size: 12px; font-weight: 600; gap: 4px; }
             .nav-item.active { color: var(--accent); }
             .nav-item span.icon { font-size: 20px; }
+
             .page { display: none; animation: fadeIn 0.4s ease-in-out; }
             .page.active { display: block; }
             @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+            
             .match-title { text-align: center; font-size: 18px; font-weight: 800; margin-bottom: 15px; padding: 15px; background: linear-gradient(135deg, #1e293b, #0f172a); border-radius: 12px; border: 1px solid var(--border); }
             .market-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 15px; }
             .market-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
             .market-title { font-size: 16px; font-weight: 600; }
             .market-total { font-size: 13px; color: var(--accent); font-weight: 800; background: rgba(16, 185, 129, 0.1); padding: 4px 10px; border-radius: 20px; }
+            
             .prob-row { margin-bottom: 15px; background: var(--bg-dark); padding: 12px; border-radius: 8px; border: 1px solid var(--border); }
             .prob-labels { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
             .prob-label { color: var(--text-muted); }
             .prob-value { font-weight: 800; }
             .bar-bg { width: 100%; height: 6px; background: #000; border-radius: 4px; overflow: hidden; margin-bottom: 10px; }
             .bar-fill { height: 100%; border-radius: 4px; transition: width 1s ease-out; }
+            
             .cote-input { width: 80px !important; padding: 6px !important; font-size: 14px !important; text-align: center; border-radius: 6px !important; }
             .value-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 800; margin-top: 5px; }
             .value-yes { background-color: rgba(16, 185, 129, 0.2); color: var(--accent); border: 1px solid var(--accent); }
             .value-no { background-color: rgba(239, 68, 68, 0.2); color: var(--danger); border: 1px solid var(--danger); }
             .value-empty { background-color: var(--bg-card); color: var(--text-muted); border: 1px solid var(--border); }
+            
             .history-item { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
             .history-info h4 { font-size: 15px; margin-bottom: 4px; }
             .history-info p { font-size: 12px; color: var(--text-muted); }
@@ -83,95 +91,112 @@ async def home():
         </style>
     </head>
     <body>
+
         <div class="container">
-            <div class="header">
-                <h1>⚽ ORION</h1>
-                <p>Football Analytics Engine</p>
-            </div>
-            <div id="page-analyse" class="page active">
-                <div class="card">
-                    <div class="input-group">
-                        <div>
-                            <label>Sélectionner un match</label>
-                            <select id="matchId">
-                                <option value="">Chargement des matchs...</option>
-                            </select>
-                        </div>
-                        <button onclick="analyserMatch()">🧠 Analyser le match</button>
+        <div class="header">
+            <h1>⚽ ORION</h1>
+            <p>Football Analytics Engine</p>
+        </div>
+
+        <div id="page-analyse" class="page active">
+            <div class="card">
+                <div class="input-group">
+                    <div>
+                        <label>Sélectionner un match</label>
+                        <select id="matchId">
+                            <option value="">Chargement des matchs...</option>
+                        </select>
                     </div>
-                </div>
-                <div id="resultats" style="display: none;">
-                    <div class="match-title" id="matchTitle"></div>
-                    <div class="market-card">
-                        <div class="market-header">
-                            <span class="market-title">📐 Corners</span>
-                            <span class="market-total" id="totalCorners"></span>
-                        </div>
-                        <div id="cornersProbs"></div>
-                    </div>
-                    <div class="market-card">
-                        <div class="market-header">
-                            <span class="market-title">🟨 Cartons</span>
-                            <span class="market-total" id="totalCartons"></span>
-                        </div>
-                        <div id="cartonsProbs"></div>
-                    </div>
-                    <button class="btn-save" onclick="sauvegarderPrediction()">💾 Sauvegarder cette analyse</button>
+                    <button onclick="analyserMatch()">🧠 Analyser le match</button>
                 </div>
             </div>
-            <div id="page-historique" class="page">
-                <div id="listeHistorique"></div>
+            <div id="resultats" style="display: none;">
+                <div class="match-title" id="matchTitle"></div>
+                
+                <div class="market-card">
+                    <div class="market-header">
+                        <span class="market-title">📐 Corners</span>
+                        <span class="market-total" id="totalCorners"></span>
+                    </div>
+                    <div id="cornersProbs"></div>
+                </div>
+                
+                <div class="market-card">
+                    <div class="market-header">
+                        <span class="market-title">🟨 Cartons</span>
+                        <span class="market-total" id="totalCartons"></span>
+                    </div>
+                    <div id="cartonsProbs"></div>
+                </div>
+
+                <div class="market-card" style="border: 1px solid var(--accent);">
+                    <div class="market-header">
+                        <span class="market-title">⏱️ Score Exact Mi-Temps</span>
+                        <span class="market-total" style="background:var(--accent); color:#000;">Top 3</span>
+                    </div>
+                    <div id="htScoresProbs" style="display:flex; justify-content:space-between; text-align:center;"></div>
+                </div>
+
+                <button class="btn-save" onclick="sauvegarderPrediction()">💾 Sauvegarder cette analyse</button>
             </div>
-            <div id="page-parametres" class="page">
-                <div class="card">
-                    <h3 style="margin-bottom: 15px; color: var(--accent);">Contexte du match</h3>
-                    <div class="input-group">
-                        <div>
-                            <label>Météo</label>
-                            <select id="meteo">
-                                <option value="Sec">☀️ Sec</option>
-                                <option value="Pluie">🌧️ Pluie</option>
-                                <option value="Vent fort">💨 Vent fort</option>
-                                <option value="Neige">❄️ Neige</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label>Style de l'adversaire</label>
-                            <select id="styleAdv">
-                                <option value="Équilibré">⚖️ Équilibré</option>
-                                <option value="Défensif">🛡️ Défensif</option>
-                                <option value="Offensif">⚔️ Offensif</option>
-                                <option value="Contre-attaque">⚡ Contre-attaque</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label>Nom de l'arbitre</label>
-                            <input type="text" id="arbitre" placeholder="Ex: M. Oliver">
-                        </div>
-                        <div>
-                            <label>Profil de l'arbitre</label>
-                            <select id="arbitreProfil">
-                                <option value="Normal">Normal</option>
-                                <option value="Sévère">🟨 Sévère (beaucoup de cartons)</option>
-                                <option value="Laxiste">🟩 Laxiste (laisse jouer)</option>
-                            </select>
-                        </div>
+        </div>
+
+        <div id="page-historique" class="page">
+            <div id="listeHistorique"></div>
+        </div>
+
+        <div id="page-parametres" class="page">
+            <div class="card">
+                <h3 style="margin-bottom: 15px; color: var(--accent);">Contexte du match</h3>
+                <div class="input-group">
+                    <div>
+                        <label>Météo</label>
+                        <select id="meteo">
+                            <option value="Sec">☀️ Sec</option>
+                            <option value="Pluie">🌧️ Pluie</option>
+                            <option value="Vent fort">💨 Vent fort</option>
+                            <option value="Neige">❄️ Neige</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Style de l'adversaire</label>
+                        <select id="styleAdv">
+                            <option value="Équilibré">⚖️ Équilibré</option>
+                            <option value="Défensif">🛡️ Défensif</option>
+                            <option value="Offensif">⚔️ Offensif</option>
+                            <option value="Contre-attaque">⚡ Contre-attaque</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Nom de l'arbitre</label>
+                        <input type="text" id="arbitre" placeholder="Ex: M. Oliver">
+                    </div>
+                    <div>
+                        <label>Profil de l'arbitre</label>
+                        <select id="arbitreProfil">
+                            <option value="Normal">Normal</option>
+                            <option value="Sévère">🟨 Sévère (beaucoup de cartons)</option>
+                            <option value="Laxiste">🟩 Laxiste (laisse jouer)</option>
+                        </select>
                     </div>
                 </div>
             </div>
         </div>
-        <nav class="bottom-nav">
-            <div class="nav-item active" onclick="switchTab('analyse')" id="nav-analyse">
-                <span class="icon">🧠</span> Analyse
-            </div>
-            <div class="nav-item" onclick="switchTab('historique')" id="nav-historique">
-                <span class="icon">📜</span> Historique
-            </div>
-            <div class="nav-item" onclick="switchTab('parametres')" id="nav-parametres">
-                <span class="icon">⚙️</span> Paramètres
-            </div>
-        </nav>
-            <script>
+    </div>
+
+    <nav class="bottom-nav">
+        <div class="nav-item active" onclick="switchTab('analyse')" id="nav-analyse">
+            <span class="icon">🧠</span> Analyse
+        </div>
+        <div class="nav-item" onclick="switchTab('historique')" id="nav-historique">
+            <span class="icon">📜</span> Historique
+        </div>
+        <div class="nav-item" onclick="switchTab('parametres')" id="nav-parametres">
+            <span class="icon">⚙️</span> Paramètres
+        </div>
+    </nav>
+
+    <script>
         let currentMatchId = null;
         let currentDataC = null;
         let currentDataK = null;
@@ -220,8 +245,10 @@ async def home():
                 const dataC = await resC.json();
                 const resK = await fetch(`/predict-cards/${matchId}`);
                 const dataK = await resK.json();
+                const resHT = await fetch(`/predict-ht-score/${matchId}`);
+                const dataHT = await resHT.json();
 
-                if(dataC.erreur || dataK.erreur) { alert("Match introuvable."); return; }
+                if(dataC.erreur || dataK.erreur || dataHT.erreur) { alert("Match introuvable ou données manquantes."); return; }
 
                 currentMatchId = matchId;
                 currentDataC = dataC;
@@ -233,6 +260,19 @@ async def home():
 
                 document.getElementById('cornersProbs').innerHTML = genererBarres(dataC.analyse_corners, ['probabilite_plus_de_8_5', 'probabilite_plus_de_9_5'], ['+8.5 Corners', '+9.5 Corners']);
                 document.getElementById('cartonsProbs').innerHTML = genererBarres(dataK.analyse_cartons, ['probabilite_plus_de_3_5', 'probabilite_plus_de_4_5'], ['+3.5 Cartons', '+4.5 Cartons']);
+
+                let htHtml = '';
+                dataHT.top_scores_mi_temps.forEach((s, index) => {
+                    let color = index === 0 ? 'var(--accent)' : 'var(--text-main)';
+                    let border = index === 0 ? 'var(--accent)' : 'var(--border)';
+                    htHtml += `
+                        <div style="background:var(--bg-dark); padding:10px; border-radius:8px; width:30%; border: 1px solid ${border};">
+                            <div style="font-size:20px; font-weight:800; color:${color};">${s.score}</div>
+                            <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">${s.probabilite}%</div>
+                        </div>
+                    `;
+                });
+                document.getElementById('htScoresProbs').innerHTML = htHtml;
 
                 document.getElementById('resultats').style.display = 'block';
             } catch (e) { alert("Erreur de connexion."); }
@@ -385,6 +425,7 @@ async def api_historique():
         return {"erreur": str(e)}
     finally:
         db.close()
+
 @app.get("/update-schema")
 async def update_schema():
     if not SessionLocal: return {"erreur": "Pas de BDD"}
@@ -566,6 +607,65 @@ async def predict_cards(match_id_local: int):
     finally:
         db.close()
 
+@app.get("/predict-ht-score/{match_id_local}")
+async def predict_ht_score(match_id_local: int):
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        match = db.query(Match).filter(Match.id == match_id_local).first()
+        if not match: return {"erreur": "Match introuvable."}
+
+        stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
+            (Match.equipe_domicile == match.equipe_domicile) | (Match.equipe_exterieur == match.equipe_domicile)
+        ).all()
+        buts_dom, nb_matchs_dom = 0, 0
+        for stat, m in stats_dom:
+            if m.equipe_domicile == match.equipe_domicile and m.score_domicile is not None:
+                buts_dom += m.score_domicile
+                nb_matchs_dom += 1
+            elif m.equipe_exterieur == match.equipe_domicile and m.score_exterieur is not None:
+                buts_dom += m.score_exterieur
+                nb_matchs_dom += 1
+        moyenne_buts_dom = (buts_dom / nb_matchs_dom) if nb_matchs_dom > 0 else 1.5
+
+        stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
+            (Match.equipe_domicile == match.equipe_exterieur) | (Match.equipe_exterieur == match.equipe_exterieur)
+        ).all()
+        buts_ext, nb_matchs_ext = 0, 0
+        for stat, m in stats_ext:
+            if m.equipe_domicile == match.equipe_exterieur and m.score_domicile is not None:
+                buts_ext += m.score_domicile
+                nb_matchs_ext += 1
+            elif m.equipe_exterieur == match.equipe_exterieur and m.score_exterieur is not None:
+                buts_ext += m.score_exterieur
+                nb_matchs_ext += 1
+        moyenne_buts_ext = (buts_ext / nb_matchs_ext) if nb_matchs_ext > 0 else 1.2
+
+        lambda_dom_ht = moyenne_buts_dom * 0.45
+        lambda_ext_ht = moyenne_buts_ext * 0.45
+
+        scores_possibles = []
+        for i in range(4):
+            for j in range(4):
+                p_dom = poisson.pmf(i, lambda_dom_ht)
+                p_ext = poisson.pmf(j, lambda_ext_ht)
+                proba = p_dom * p_ext
+                scores_possibles.append({"score": f"{i}-{j}", "proba": proba})
+
+        scores_possibles.sort(key=lambda x: x["proba"], reverse=True)
+        top_3 = scores_possibles[:3]
+
+        return {
+            "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
+            "top_scores_mi_temps": [
+                {"score": s["score"], "probabilite": round(s["proba"] * 100, 2)} for s in top_3
+            ]
+        }
+    except Exception as e:
+        return {"erreur": str(e)}
+    finally:
+        db.close()
+
 @app.get("/import-csv/")
 async def import_csv(url: str):
     if not SessionLocal: return {"erreur": "Pas de BDD"}
@@ -608,7 +708,7 @@ async def import_csv(url: str):
                 date_obj = datetime.strptime(row['Date'], "%d/%m/%Y")
             except:
                 try:
-                    date_obj = datetime.strptime(row['Date'], "%d/%m/%Y")
+                    date_obj = datetime.strptime(row['Date'], "%d/%m/%y")
                 except:
                     date_obj = datetime.now()
 
