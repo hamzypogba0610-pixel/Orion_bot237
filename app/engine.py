@@ -85,4 +85,37 @@ def calc_hawkes_impact(historique_corners):
     multiplicateur = 1.0 + (dispersion * 0.05)
     
     # On plafonne pour éviter des prédictions absurdes
-    return min(multiplicateur, 1.25) 
+    return min(multiplicateur, 1.25)
+
+def calc_shadow_market(proba_ensemble, cote_bookmaker):
+    """
+    Compare notre probabilité avec celle du bookmaker.
+    Retourne l'écart (Edge) et le pourcentage de marge implicite.
+    """
+    if cote_bookmaker <= 1.0:
+        return {"erreur": "Cote invalide"}
+        
+    proba_implicite = (1 / cote_bookmaker) * 100
+    
+    # On estime la marge du bookmaker (Vig) à environ 5% en moyenne
+    marge_bookmaker = 5.0
+    proba_reelle_bookmaker = proba_implicite - (proba_implicite * (marge_bookmaker / 100))
+    
+    # Edge (Notre avantage)
+    edge = proba_ensemble - proba_reelle_bookmaker
+    
+    if edge > 5.0:
+        statut = "🔥 VALUE BET (Le marché est aveugle)"
+    elif edge > 0:
+        statut = "✅ Léger avantage"
+    else:
+        statut = "❌ Pas d'avantage (Le marché a raison)"
+
+    return {
+        "cote_saisie": cote_bookmaker,
+        "proba_implicite_brute": round(proba_implicite, 2),
+        "proba_reelle_bookmaker_estimee": round(proba_reelle_bookmaker, 2),
+        "notre_proba_ensemble": round(proba_ensemble, 2),
+        "edge": round(edge, 2),
+        "statut_shadow_market": statut
+    }
