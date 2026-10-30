@@ -859,7 +859,8 @@ async def predict_live(
     corners_ext: int, 
     score_dom: int, 
     score_ext: int, 
-    ligne: float = 9.5
+    ligne: float, 
+    cote: float
 ):
     if not SessionLocal: return {"erreur": "Pas de BDD"}
     db = SessionLocal()
@@ -867,7 +868,7 @@ async def predict_live(
         match = db.query(Match).filter(Match.id == match_id_local).first()
         if not match: return {"erreur": "Match introuvable."}
 
-        # On récupère les moyennes historiques des équipes (comme pour le pre-match)
+        # 1. Récupération des moyennes historiques
         stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.equipe_domicile == match.equipe_domicile).all()
         corners_d, nb_d = 0, 0
         for stat, m in stats_dom:
@@ -882,7 +883,7 @@ async def predict_live(
                 corners_e += stat.corners_exterieur; nb_e += 1
         moy_ext = (corners_e / nb_e) if nb_e > 0 else 4.0
 
-        # On appelle notre nouvelle fonction engine
+        # 2. Calcul Live
         corners_actuels_total = corners_dom + corners_ext
         resultat_live = calc_live_corners(
             moyenne_dom=moy_dom, 
@@ -894,15 +895,26 @@ async def predict_live(
             ligne=ligne
         )
 
+        # 3. Calcul de la Value (EV) avec la cote saisie
+        proba_decimale = resultat_live["probabilite_live"] / 100
+        ev = (proba_decimale * cote) - 1
+        
+        if ev > 0:
+            verdict = f"🔥 VALUE BET LIVE (+{round(ev*100, 1)}%)"
+        else:
+            verdict = f"❌ Pas de Value ({round(ev*100, 1)}%)"
+
         return {
             "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
             "etat_actuel": {
                 "minute": minute,
                 "score": f"{score_dom} - {score_ext}",
                 "corners_actuels": corners_actuels_total,
-                "ligne_visee": ligne
+                "ligne_visee": ligne,
+                "cote_saisie": cote
             },
-            "analyse_live": resultat_live
+            "analyse_live": resultat_live,
+            "verdict_value": verdict
         }
     except Exception as e:
         return {"erreur": str(e)}
