@@ -156,38 +156,80 @@ async def predict_corners(match_id_local: int):
         match = db.query(Match).filter(Match.id == match_id_local).first()
         if not match: return {"erreur": "Match introuvable."}
 
+        # 1. Calcul de la moyenne GLOBALE du championnat (pour les corners)
+        tous_les_matchs = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.competition_id == match.competition_id).all()
+        
+        total_corners_championnat, nb_matchs_championnat = 0, 0
+        for stat, m in tous_les_matchs:
+            if stat.corners_domicile is not None and stat.corners_exterieur is not None:
+                total_corners_championnat += (stat.corners_domicile + stat.corners_exterieur)
+                nb_matchs_championnat += 1
+        
+        moyenne_championnat = (total_corners_championnat / nb_matchs_championnat) if nb_matchs_championnat > 0 else 10.0
+
+        # 2. Force d'attaque à domicile (Combien l'équipe A marque de corners par rapport à la moyenne)
         stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
-            (Match.equipe_domicile == match.equipe_domicile) | (Match.equipe_exterieur == match.equipe_domicile)
+            (Match.equipe_domicile == match.equipe_domicile)
         ).all()
-        total_corners_dom, nb_matchs_dom = 0, 0
+        corners_dom, nb_matchs_dom = 0, 0
         for stat, m in stats_dom:
-            if m.equipe_domicile == match.equipe_domicile and stat.corners_domicile is not None:
-                total_corners_dom += stat.corners_domicile
+            if stat.corners_domicile is not None:
+                corners_dom += stat.corners_domicile
                 nb_matchs_dom += 1
-            elif m.equipe_exterieur == match.equipe_domicile and stat.corners_exterieur is not None:
-                total_corners_dom += stat.corners_exterieur
-                nb_matchs_dom += 1
-        moyenne_dom = (total_corners_dom / nb_matchs_dom) if nb_matchs_dom > 0 else 5.5
+        moyenne_dom = (corners_dom / nb_matchs_dom) if nb_matchs_dom > 0 else moyenne_championnat
+        force_attaque_dom = moyenne_dom / (moyenne_championnat / 2) # divisé par 2 car moyenne_championnat est le total des 2 équipes
 
-        stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
-            (Match.equipe_domicile == match.equipe_exterieur) | (Match.equipe_exterieur == match.equipe_exterieur)
+        # 3. Force de défense à l'extérieur (Combien l'équipe B concède de corners par rapport à la moyenne)
+        stats_def_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
+            (Match.equipe_exterieur == match.equipe_exterieur)
         ).all()
-        total_corners_ext, nb_matchs_ext = 0, 0
-        for stat, m in stats_ext:
-            if m.equipe_domicile == match.equipe_exterieur and stat.corners_domicile is not None:
-                total_corners_ext += stat.corners_domicile
-                nb_matchs_ext += 1
-            elif m.equipe_exterieur == match.equipe_exterieur and stat.corners_exterieur is not None:
-                total_corners_ext += stat.corners_exterieur
-                nb_matchs_ext += 1
-        moyenne_ext = (total_corners_ext / nb_matchs_ext) if nb_matchs_ext > 0 else 4.0
+        corners_concedes_ext, nb_matchs_def_ext = 0, 0
+        for stat, m in stats_def_ext:
+            if stat.corners_domicile is not None:
+                corners_concedes_ext += stat.corners_domicile
+                nb_matchs_def_ext += 1
+        moyenne_concedee_ext = (corners_concedes_ext / nb_matchs_def_ext) if nb_matchs_def_ext > 0 else moyenne_championnat / 2
+        force_defense_ext = moyenne_concedee_ext / (moyenne_championnat / 2)
 
-        lambda_total = moyenne_dom + moyenne_ext
+        # 4. Force d'attaque à l'extérieur (Equipe B)
+        stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
+            (Match.equipe_exterieur == match.equipe_exterieur)
+        ).all()
+        corners_ext, nb_matchs_ext = 0, 0
+        for stat, m in stats_ext:
+            if stat.corners_exterieur is not None:
+                corners_ext += stat.corners_exterieur
+                nb_matchs_ext += 1
+        moyenne_ext = (corners_ext / nb_matchs_ext) if nb_matchs_ext > 0 else moyenne_championnat / 2
+        force_attaque_ext = moyenne_ext / (moyenne_championnat / 2)
+
+        # 5. Force de défense à domicile (Equipe A)
+        stats_def_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
+            (Match.equipe_domicile == match.equipe_domicile)
+        ).all()
+        corners_concedes_dom, nb_matchs_def_dom = 0, 0
+        for stat, m in stats_def_dom:
+            if stat.corners_exterieur is not None:
+                corners_concedes_dom += stat.corners_exterieur
+                nb_matchs_def_dom += 1
+        moyenne_concedee_dom = (corners_concedes_dom / nb_matchs_def_dom) if nb_matchs_def_dom > 0 else moyenne_championnat / 2
+        force_defense_dom = moyenne_concedee_dom / (moyenne_championnat / 2)
+
+        # 6. Calcul du Lambda final (Attendu A = Moyenne_Champ/2 * Force_Attaque_A * Force_Defense_B)
+        lambda_dom = (moyenne_championnat / 2) * force_attaque_dom * force_defense_ext
+        lambda_ext = (moyenne_championnat / 2) * force_attaque_ext * force_defense_dom
+        lambda_total = lambda_dom + lambda_ext
+
         return {
             "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
-            "donnees_utilisees": {"matchs_domicile": nb_matchs_dom, "matchs_exterieur": nb_matchs_ext},
+            "contexte": {
+                "moyenne_championnat": round(moyenne_championnat, 2),
+                "force_attaque_dom": round(force_attaque_dom, 2),
+                "force_defense_ext": round(force_defense_ext, 2)
+            },
             "analyse_corners": {
-                "moyenne_domicile": round(moyenne_dom, 2), "moyenne_exterieur": round(moyenne_ext, 2),
+                "attendu_domicile": round(lambda_dom, 2), 
+                "attendu_exterieur": round(lambda_ext, 2),
                 "total_attendu": round(lambda_total, 2),
                 "probabilite_plus_de_9_5": round((1 - poisson.cdf(9, lambda_total)) * 100, 2),
                 "probabilite_plus_de_8_5": round((1 - poisson.cdf(8, lambda_total)) * 100, 2)
