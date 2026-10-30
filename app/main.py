@@ -150,17 +150,21 @@ async def init_competitions():
     db = SessionLocal()
     try:
         les_ligues = [
-            {"id_api": 39, "nom": "Premier League", "pays": "Angleterre"},
-            {"id_api": 140, "nom": "La Liga", "pays": "Espagne"},
-            {"id_api": 135, "nom": "Serie A", "pays": "Italie"},
-            {"id_api": 78, "nom": "Bundesliga", "pays": "Allemagne"},
-            {"id_api": 61, "nom": "Ligue 1", "pays": "France"},
-            # NOUVEAUX CHAMPIONNATS
-            {"id_api": 88, "nom": "Eredivisie", "pays": "Pays-Bas"},
-            {"id_api": 94, "nom": "Primeira Liga", "pays": "Portugal"},
-            {"id_api": 144, "nom": "Pro League", "pays": "Belgique"},
-            {"id_api": 203, "nom": "Süper Lig", "pays": "Turquie"},
-            {"id_api": 197, "nom": "Super League", "pays": "Grèce"}
+    {"id_api": 39, "nom": "Premier League", "pays": "Angleterre"},
+    {"id_api": 140, "nom": "La Liga", "pays": "Espagne"},
+    {"id_api": 135, "nom": "Serie A", "pays": "Italie"},
+    {"id_api": 78, "nom": "Bundesliga", "pays": "Allemagne"},
+    {"id_api": 61, "nom": "Ligue 1", "pays": "France"},
+    {"id_api": 88, "nom": "Eredivisie", "pays": "Pays-Bas"},
+    {"id_api": 94, "nom": "Primeira Liga", "pays": "Portugal"},
+    {"id_api": 144, "nom": "Pro League", "pays": "Belgique"},
+    {"id_api": 203, "nom": "Süper Lig", "pays": "Turquie"},
+    {"id_api": 197, "nom": "Super League", "pays": "Grèce"},
+    {"id_api": 2, "nom": "Ligue des Champions", "pays": "Europe"},
+    {"id_api": 3, "nom": "Europa League", "pays": "Europe"},
+    {"id_api": 71, "nom": "Brasileirao", "pays": "Brésil"},
+    {"id_api": 307, "nom": "Saudi Pro League", "pays": "Arabie Saoudite"},
+    {"id_api": 253, "nom": "MLS", "pays": "USA"}
         ]
         ajoutees = 0
         for ligue in les_ligues:
