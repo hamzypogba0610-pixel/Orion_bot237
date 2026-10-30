@@ -74,19 +74,47 @@
         </div>
 
         <div id="page-analyse" class="page active">
-            <div class="card">
-                <div class="input-group">
-                    <button onclick="actualiserMatchs()" id="btnSync" style="background-color: var(--blue); margin-bottom: 10px;">🔄 Actualiser les matchs du jour</button>
-                    <div>
-                        <label>Sélectionner un match</label>
-                        <select id="matchId">
-                            <option value="">Chargement des matchs...</option>
-                        </select>
-                    </div>
-                    <button onclick="analyserMatch()">🧠 Analyser le match</button>
-                </div>
+    
+    <!-- NOUVEAU : LE SCANNER ORION RADAR -->
+    <div class="card" style="border: 2px solid var(--accent); background: linear-gradient(135deg, #1e293b, #0f172a);">
+        <h3 style="color: var(--accent); margin-bottom: 10px; text-align: center;">🛰️ ORION Radar</h3>
+        <p style="font-size: 12px; color: var(--text-muted); text-align: center; margin-bottom: 15px;">Laisse l'IA scanner les matchs et trouver les meilleures opportunités.</p>
+        <button onclick="lancerScanner()" id="btnScan" style="background-color: var(--accent);">🚀 Scanner le Top 3</button>
+        <div id="scanResultats" style="display: none; margin-top: 15px;"></div>
+    </div>
+
+    <div class="card">
+        <div class="input-group">
+            <button onclick="actualiserMatchs()" id="btnSync" style="background-color: var(--blue); margin-bottom: 10px;">🔄 Actualiser les matchs du jour</button>
+            <div>
+                <label>Sélectionner un match</label>
+                <select id="matchId">
+                    <option value="">Chargement des matchs...</option>
+                </select>
             </div>
+            <button onclick="analyserMatch()">🧠 Analyser le match (Pre-match)</button>
             
+            <!-- NOUVEAU : LE MODE LIVE -->
+            <button onclick="toggleLiveForm()" id="btnToggleLive" style="background-color: transparent; border: 1px solid var(--danger); color: var(--danger); margin-top: 10px;">🔴 Mode Live Betting</button>
+            
+            <div id="liveForm" style="display: none; background: var(--bg-dark); padding: 15px; border-radius: 8px; border: 1px solid var(--danger); margin-top: 15px;">
+                <h4 style="color: var(--danger); margin-bottom: 10px;">🔴 Analyse en Direct</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div><label>Minute</label><input type="number" id="liveMinute" value="60"></div>
+                    <div><label>Ligne visée</label><input type="number" step="0.5" id="liveLigne" value="9.5"></div>
+                    <div><label>Corners Dom</label><input type="number" id="liveCornersDom" value="3"></div>
+                    <div><label>Corners Ext</label><input type="number" id="liveCornersExt" value="2"></div>
+                    <div><label>Score Dom</label><input type="number" id="liveScoreDom" value="1"></div>
+                    <div><label>Score Ext</label><input type="number" id="liveScoreExt" value="0"></div>
+                </div>
+                <div style="margin-top: 10px;">
+                    <label>Cote du bookmaker (Live)</label>
+                    <input type="number" step="0.01" id="liveCote" value="2.10">
+                </div>
+                <button onclick="analyserLive()" style="background-color: var(--danger); margin-top: 15px;">⚡ Calculer la Value Live</button>
+            </div>
+        </div>
+    </div>
             <div id="resultats" style="display: none;">
                 <div class="match-title" id="matchTitle"></div>
                 <!-- NOUVELLE CARTE : MOTEUR D'ENSEMBLE -->
@@ -226,6 +254,84 @@
         let currentMatchId = null;
         let currentDataC = null;
         let currentDataK = null;
+            // FONCTIONS DU SCANNER
+async function lancerScanner() {
+    const btn = document.getElementById('btnScan');
+    const resDiv = document.getElementById('scanResultats');
+    
+    btn.innerText = "⏳ Scan en cours (7 modèles)...";
+    btn.disabled = true;
+    resDiv.style.display = 'none';
+
+    try {
+        const response = await fetch('/scan-today');
+        const data = await response.json();
+
+        if (data.erreur) { alert(data.erreur); return; }
+        if (!data.top_3 || data.top_3.length === 0) {
+            resDiv.style.display = 'block';
+            resDiv.innerHTML = '<p style="color:var(--danger); text-align:center;">Aucune opportunité fiable trouvée aujourd\'hui.</p>';
+            return;
+        }
+
+        resDiv.style.display = 'block';
+        resDiv.innerHTML = '<h4 style="margin-bottom:10px; color:var(--accent);">Top 3 Opportunités :</h4>';
+        
+        data.top_3.forEach((opt, index) => {
+            let badgeColor = opt.fiabilite.includes('HAUTE') ? 'var(--accent)' : '#f59e0b';
+            resDiv.innerHTML += `
+                <div style="background: var(--bg-dark); padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid ${badgeColor};">
+                    <div style="display:flex; justify-content:space-between;">
+                        <span style="font-weight:bold; font-size:14px;">${index + 1}. ${opt.match}</span>
+                        <span style="color:${badgeColor}; font-weight:bold;">${opt.probabilite}%</span>
+                    </div>
+                    <div style="font-size:11px; color:var(--text-muted); margin-top:5px; display:flex; justify-content:space-between;">
+                        <span>Marché: ${opt.marche}</span>
+                        <span style="color:${badgeColor};">Fiabilité: ${opt.fiabilite}</span>
+                    </div>
+                </div>
+            `;
+        });
+    } catch (e) {
+        alert("Erreur de connexion.");
+    } finally {
+        btn.innerText = "🚀 Scanner le Top 3";
+        btn.disabled = false;
+    }
+}
+
+// FONCTIONS DU MODE LIVE
+function toggleLiveForm() {
+    const form = document.getElementById('liveForm');
+    form.style.display = (form.style.display === 'none') ? 'block' : 'none';
+}
+
+async function analyserLive() {
+    const matchId = document.getElementById('matchId').value;
+    if(!matchId) { alert("Veuillez sélectionner un match en haut."); return; }
+
+    const minute = document.getElementById('liveMinute').value;
+    const ligne = document.getElementById('liveLigne').value;
+    const cDom = document.getElementById('liveCornersDom').value;
+    const cExt = document.getElementById('liveCornersExt').value;
+    const sDom = document.getElementById('liveScoreDom').value;
+    const sExt = document.getElementById('liveScoreExt').value;
+    const cote = document.getElementById('liveCote').value;
+
+    try {
+        const url = `/predict-live/${matchId}?minute=${minute}&corners_dom=${cDom}&corners_ext=${cExt}&score_dom=${sDom}&score_ext=${sExt}&ligne=${ligne}&cote=${cote}`;
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.erreur) { alert(data.erreur); return; }
+
+        document.getElementById('resultats').style.display = 'none';
+        alert(`🔴 RÉSULTAT LIVE :\n\nProbabilité : ${data.analyse_live.probabilite_live}%\n${data.verdict_value}`);
+        
+    } catch (e) {
+        alert("Erreur de connexion.");
+    }
+            }
 
         function switchTab(tabName) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
