@@ -37,7 +37,9 @@
         .page.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
-        .match-title { text-align: center; font-size: 18px; font-weight: 800; margin-bottom: 15px; padding: 15px; background: linear-gradient(135deg, #1e293b, #0f172a); border-radius: 12px; border: 1px solid var(--border); }
+        .match-title { text-align: center; font-size: 18px; font-weight: 800; margin-bottom: 15px; padding: 15px; background: linear-gradient(135deg, #1e293b, #0f172a); border-radius: 12px; border: 1px solid var(--border); display: flex; justify-content: center; align-items: center; gap: 10px; }
+        .match-title img { width: 30px; height: 30px; object-fit: contain; }
+        
         .market-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 15px; }
         .market-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
         .market-title { font-size: 16px; font-weight: 600; }
@@ -74,8 +76,8 @@
         <div id="page-analyse" class="page active">
             <div class="card">
                 <div class="input-group">
+                    <button onclick="actualiserMatchs()" id="btnSync" style="background-color: var(--blue); margin-bottom: 10px;">🔄 Actualiser les matchs du jour</button>
                     <div>
-                        <button onclick="actualiserMatchs()" id="btnSync" style="background-color: var(--blue); margin-bottom: 15px;">🔄 Actualiser les matchs du jour</button>
                         <label>Sélectionner un match</label>
                         <select id="matchId">
                             <option value="">Chargement des matchs...</option>
@@ -84,6 +86,7 @@
                     <button onclick="analyserMatch()">🧠 Analyser le match</button>
                 </div>
             </div>
+            
             <div id="resultats" style="display: none;">
                 <div class="match-title" id="matchTitle"></div>
                 
@@ -170,7 +173,7 @@
         </div>
     </nav>
 
-    <script>
+        <script>
         let currentMatchId = null;
         let currentDataC = null;
         let currentDataK = null;
@@ -183,28 +186,6 @@
             document.getElementById(`nav-${tabName}`).classList.add('active');
 
             if(tabName === 'historique') chargerHistorique();
-        }
-        async function actualiserMatchs() {
-    const btn = document.getElementById('btnSync');
-    btn.innerText = "⏳ Recherche en cours...";
-    btn.disabled = true;
-
-    try {
-        const response = await fetch('/sync-today');
-        const result = await response.json();
-        
-        if(result.erreur) {
-            alert("Erreur : " + result.erreur);
-        } else {
-            alert("✅ " + result.message);
-            await chargerMatchs(); // On recharge la liste après l'ajout
-        }
-    } catch (e) {
-        alert("Erreur de connexion.");
-    } finally {
-        btn.innerText = "🔄 Actualiser les matchs du jour";
-        btn.disabled = false;
-    }
         }
 
         async function chargerMatchs() {
@@ -223,9 +204,34 @@
                     let option = document.createElement('option');
                     option.value = m.id;
                     option.text = `${m.nom} (${m.date})`;
+                    option.setAttribute('data-logo-dom', m.logo_dom || '');
+                    option.setAttribute('data-logo-ext', m.logo_ext || '');
                     select.appendChild(option);
                 });
             } catch (e) { console.error(e); }
+        }
+
+        async function actualiserMatchs() {
+            const btn = document.getElementById('btnSync');
+            btn.innerText = "⏳ Recherche en cours...";
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/sync-today');
+                const result = await response.json();
+                
+                if(result.erreur) {
+                    alert("Erreur : " + result.erreur);
+                } else {
+                    alert("✅ " + result.message);
+                    await chargerMatchs();
+                }
+            } catch (e) {
+                alert("Erreur de connexion.");
+            } finally {
+                btn.innerText = "🔄 Actualiser les matchs du jour";
+                btn.disabled = false;
+            }
         }
 
         window.onload = chargerMatchs;
@@ -250,7 +256,19 @@
                 currentDataC = dataC;
                 currentDataK = dataK;
 
-                document.getElementById('matchTitle').innerText = dataC.match;
+                const select = document.getElementById('matchId');
+                const selectedOption = select.options[select.selectedIndex];
+                const logoDom = selectedOption.getAttribute('data-logo-dom');
+                const logoExt = selectedOption.getAttribute('data-logo-ext');
+
+                let titleHtml = '';
+                if (logoDom && logoExt) {
+                    titleHtml = `<img src="${logoDom}"> <span>${dataC.match}</span> <img src="${logoExt}">`;
+                } else {
+                    titleHtml = `⚽ <span>${dataC.match}</span>`;
+                }
+                document.getElementById('matchTitle').innerHTML = titleHtml;
+
                 document.getElementById('totalCorners').innerText = `Moy: ${dataC.analyse_corners.total_attendu}`;
                 document.getElementById('totalCartons').innerText = `Moy: ${dataK.analyse_cartons.total_attendu}`;
 
@@ -378,4 +396,4 @@
         }
     </script>
 </body>
-  </html>
+</html>
