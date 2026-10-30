@@ -430,6 +430,8 @@ async def import_csv(url: str):
         elif "B1.csv" in url: nom_ligue = "Pro League"
         elif "T1.csv" in url: nom_ligue = "Süper Lig"
         elif "G1.csv" in url: nom_ligue = "Super League"
+        elif "new/BRA.csv" in url: nom_ligue = "Brasileirao"
+        elif "new/USA.csv" in url: nom_ligue = "MLS"
         else: return {"erreur": "Lien non reconnu. Vérifie le code du fichier (E0, SP1, I1, F1, D1, N1, P1, B1, T1, G1)."}
 
         # 2. Recherche de la compétition dans la base
