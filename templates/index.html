@@ -89,6 +89,7 @@
             
             <div id="resultats" style="display: none;">
                 <div class="match-title" id="matchTitle"></div>
+                <div id="contextInfo" style="font-size: 12px; color: var(--text-muted); text-align: center; margin-bottom: 15px; background: var(--bg-card); padding: 10px; border-radius: 8px; display: none;"></div>
                 
                 <div class="market-card">
                     <div class="market-header">
@@ -270,6 +271,12 @@
                 document.getElementById('matchTitle').innerHTML = titleHtml;
 
                 document.getElementById('totalCorners').innerText = `Moy: ${dataC.analyse_corners.total_attendu}`;
+                // Affichage du contexte
+const ctxDiv = document.getElementById('contextInfo');
+if (dataC.contexte) {
+    ctxDiv.style.display = 'block';
+    ctxDiv.innerHTML = `📊 <b>Force des équipes :</b> Moyenne Championnat: ${dataC.contexte.moyenne_championnat} | Attaque Dom: ${dataC.contexte.force_attaque_dom} | Défense Ext: ${dataC.contexte.force_defense_ext}`;
+            }
                 document.getElementById('totalCartons').innerText = `Moy: ${dataK.analyse_cartons.total_attendu}`;
 
                 document.getElementById('cornersProbs').innerHTML = genererBarres(dataC.analyse_corners, ['probabilite_plus_de_8_5', 'probabilite_plus_de_9_5'], ['+8.5 Corners', '+9.5 Corners']);
