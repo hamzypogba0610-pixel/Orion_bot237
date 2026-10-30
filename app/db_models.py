@@ -53,6 +53,9 @@ class Prediction(Base):
     arbitre = Column(String, nullable=True)
     arbitre_profil = Column(String, nullable=True)
     date_prediction = Column(DateTime, default=datetime.utcnow)
+    resultat_reel = Column(Float, nullable=True)
+    statut_prediction = Column(String, default="en_attente")
+    date_resultat = Column(DateTime, nullable=True)qc
 
 class UserOdd(Base):
     __tablename__ = "user_odds"
