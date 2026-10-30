@@ -366,41 +366,87 @@ if (dataC.contexte) {
         }
 
         async function chargerHistorique() {
-            const container = document.getElementById('listeHistorique');
-            container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Chargement...</p>';
-            
-            try {
-                const response = await fetch('/api/historique');
-                const historique = await response.json();
-                
-                if (historique.erreur) {
-                    container.innerHTML = `<p style="color:red;">Erreur: ${historique.erreur}</p>`;
-                    return;
-                }
-                
-                if (historique.length === 0) {
-                    container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Aucune analyse sauvegardée.</p>';
-                    return;
-                }
-
-                container.innerHTML = '';
-                historique.forEach(h => {
-                    let marcheLabel = h.marche === 'corners' ? '📐 Corners' : '🟨 Cartons';
-                    container.innerHTML += `
-                        <div class="history-item">
-                            <div class="history-info">
-                                <h4>${h.match}</h4>
-                                <p>${marcheLabel} | Ligne: ${h.ligne} | ${h.date}</p>
-                            </div>
-                            <div class="history-proba">
-                                <span>${h.probabilite}%</span>
-                                <small>Proba</small>
-                            </div>
-                        </div>
-                    `;
-                });
-            } catch (e) { container.innerHTML = '<p style="color:red;">Erreur de connexion.</p>'; }
+    const container = document.getElementById('listeHistorique');
+    container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Chargement...</p>';
+    
+    try {
+        const response = await fetch('/api/historique');
+        const historique = await response.json();
+        
+        if (historique.erreur) {
+            container.innerHTML = `<p style="color:red;">Erreur: ${historique.erreur}</p>`;
+            return;
         }
+        
+        if (historique.length === 0) {
+            container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Aucune analyse sauvegardée.</p>';
+            return;
+        }
+
+        container.innerHTML = '';
+        historique.forEach(h => {
+            let marcheLabel = h.marche === 'corners' ? '📐 Corners' : '🟨 Cartons';
+            
+            // Gestion du statut et du bouton de saisie
+            let actionHtml = '';
+            if (h.statut === 'en_attente' || h.statut === null) {
+                actionHtml = `
+                    <div style="margin-top: 10px; display: flex; gap: 10px; align-items: center;">
+                        <input type="number" step="1" id="res_${h.id}" placeholder="Résultat réel" style="padding: 8px; border-radius: 5px; border: 1px solid var(--border); background: var(--bg-dark); color: white; width: 100px; font-size: 14px;">
+                        <button onclick="validerResultat(${h.id})" style="padding: 8px; width: auto; font-size: 12px; background: var(--accent);">Valider</button>
+                    </div>
+                `;
+            } else if (h.statut === 'gagne') {
+                actionHtml = `<span style="color: var(--accent); font-weight: bold; font-size: 12px;">✅ GAGNÉ (Résultat: ${h.resultat_reel})</span>`;
+            } else {
+                actionHtml = `<span style="color: var(--danger); font-weight: bold; font-size: 12px;">❌ PERDU (Résultat: ${h.resultat_reel})</span>`;
+            }
+
+            container.innerHTML += `
+                <div class="history-item" style="flex-direction: column; align-items: flex-start;">
+                    <div style="display: flex; justify-content: space-between; width: 100%;">
+                        <div class="history-info">
+                            <h4>${h.match}</h4>
+                            <p>${marcheLabel} | Ligne: ${h.ligne} | ${h.date}</p>
+                        </div>
+                        <div class="history-proba">
+                            <span>${h.probabilite}%</span>
+                            <small>Proba</small>
+                        </div>
+                    </div>
+                    ${actionHtml}
+                </div>
+            `;
+        });
+    } catch (e) { 
+        container.innerHTML = '<p style="color:red;">Erreur de connexion.</p>'; 
+    }
+}
+
+// NOUVELLE FONCTION : Valider le résultat
+async function validerResultat(predictionId) {
+    const input = document.getElementById(`res_${predictionId}`);
+    const valeur = parseFloat(input.value);
+    
+    if (isNaN(valeur)) {
+        alert("Veuillez entrer un nombre valide.");
+        return;
+    }
+
+    try {
+        const response = await fetch(`/ajouter-resultat/${predictionId}?resultat_reel=${valeur}`, { method: 'POST' });
+        const result = await response.json();
+        
+        if (result.erreur) {
+            alert("Erreur : " + result.erreur);
+        } else {
+            alert("✅ " + result.message);
+            await chargerHistorique(); // Recharge l'historique pour voir le résultat
+        }
+    } catch (e) { 
+        alert("Erreur de connexion."); 
+    }
+}
     </script>
 </body>
 </html>
