@@ -386,3 +386,57 @@ async def import_csv(url: str):
         return {"erreur": str(e)}
     finally:
         db.close()
+
+@app.get("/sync-today")
+async def sync_today():
+    api_key = os.getenv("API_FOOTBALL_KEY")
+    if not api_key or not SessionLocal: return {"erreur": "Configuration manquante"}
+    
+    db = SessionLocal()
+    try:
+        # 1. On demande la date d'aujourd'hui
+        aujourd_hui = datetime.now().strftime("%Y-%m-%d")
+        url = f"https://v3.football.api-sports.io/fixtures?date={aujourd_hui}"
+        headers = {"x-apisports-key": api_key}
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers)
+        data = response.json()
+        
+        if data.get("results", 0) == 0: return {"message": "Aucun match aujourd'hui sur l'API."}
+
+        top_leagues = [39, 140, 135, 61, 78]
+        matchs_ajoutes = 0
+
+        for m in data["response"]:
+            id_ligue = m["league"]["id"]
+            if id_ligue not in top_leagues: continue
+
+            id_match_api = m["fixture"]["id"]
+            competition_locale = db.query(Competition).filter(Competition.id_source == id_ligue).first()
+            
+            if competition_locale:
+                # On vérifie si le match existe déjà
+                match_local = db.query(Match).filter(Match.id_source_apifootball == id_match_api).first()
+                if not match_local:
+                    date_str = m["fixture"]["date"].replace("Z", "+00:00")
+                    nouveau_match = Match(
+                        competition_id=competition_locale.id,
+                        date_heure=datetime.fromisoformat(date_str),
+                        equipe_domicile=m["teams"]["home"]["name"],
+                        equipe_exterieur=m["teams"]["away"]["name"],
+                        statut=m["fixture"]["status"]["short"],
+                        id_source_apifootball=id_match_api,
+                        score_domicile=m["goals"]["home"],
+                        score_exterieur=m["goals"]["away"]
+                    )
+                    db.add(nouveau_match)
+                    matchs_ajoutes += 1
+        
+        db.commit()
+        return {"message": f"Succès ! {matchs_ajoutes} matchs du jour ont été ajoutés."}
+    except Exception as e:
+        db.rollback()
+        return {"erreur": str(e)}
+    finally:
+        db.close()
