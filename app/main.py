@@ -36,10 +36,12 @@ async def api_matchs():
         resultat = []
         for m in matchs:
             resultat.append({
-                "id": m.id,
-                "nom": f"{m.equipe_domicile} vs {m.equipe_exterieur}",
-                "date": m.date_heure.strftime("%d/%m/%Y") if m.date_heure else "Date inconnue"
-            })
+    "id": m.id,
+    "nom": f"{m.equipe_domicile} vs {m.equipe_exterieur}",
+    "date": m.date_heure.strftime("%d/%m/%Y") if m.date_heure else "Date inconnue",
+    "logo_dom": m.logo_domicile,
+    "logo_ext": m.logo_exterieur
+})
         return resultat
     except Exception as e:
         return {"erreur": str(e)}
@@ -425,6 +427,8 @@ async def sync_today():
                         date_heure=datetime.fromisoformat(date_str),
                         equipe_domicile=m["teams"]["home"]["name"],
                         equipe_exterieur=m["teams"]["away"]["name"],
+                        logo_domicile=m["teams"]["home"]["logo"],
+                        logo_exterieur=m["teams"]["away"]["logo"],
                         statut=m["fixture"]["status"]["short"],
                         id_source_apifootball=id_match_api,
                         score_domicile=m["goals"]["home"],
