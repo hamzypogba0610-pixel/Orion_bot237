@@ -798,7 +798,7 @@ async def scan_today():
     if not SessionLocal: return {"erreur": "Pas de BDD"}
     db = SessionLocal()
     try:
-        matchs_du_jour = db.query(Match).filter(Match.date_heure >= datetime.utcnow().date()).all()
+        matchs_du_jour = db.query(Match).order_by(Match.id.desc()).limit(15).all()
         if not matchs_du_jour: return {"message": "Aucun match à venir aujourd'hui."}
 
         meilleures_options = []
