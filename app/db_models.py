@@ -9,7 +9,7 @@ class Competition(Base):
     id = Column(Integer, primary_key=True, index=True)
     nom = Column(String, index=True)
     pays = Column(String)
-    id_source = Column(Integer, unique=True) # L'ID de l'API (ex: 39 pour Premier League)
+    id_source = Column(Integer, unique=True)
 
 class Match(Base):
     __tablename__ = "matches"
@@ -18,8 +18,8 @@ class Match(Base):
     date_heure = Column(DateTime)
     equipe_domicile = Column(String)
     equipe_exterieur = Column(String)
-    statut = Column(String) # ex: "FT", "NS" (Not Started)
-    id_source_apifootball = Column(Integer, unique=True) # L'ID du match dans l'API
+    statut = Column(String)
+    id_source_apifootball = Column(Integer, unique=True)
     score_domicile = Column(Integer, nullable=True)
     score_exterieur = Column(Integer, nullable=True)
     logo_domicile = Column(String, nullable=True)
@@ -29,33 +29,33 @@ class MatchStat(Base):
     __tablename__ = "match_stats"
     id = Column(Integer, primary_key=True, index=True)
     match_id = Column(Integer, ForeignKey("matches.id"))
-    source_api = Column(String) # ex: "api-football"
+    source_api = Column(String)
     corners_domicile = Column(Integer, nullable=True)
     corners_exterieur = Column(Integer, nullable=True)
     cartons_jaunes_domicile = Column(Integer, nullable=True)
     cartons_jaunes_exterieur = Column(Integer, nullable=True)
     cartons_rouges_domicile = Column(Integer, nullable=True)
     cartons_rouges_exterieur = Column(Integer, nullable=True)
-    statut_validation = Column(String, default="manquant") # "confirmé", "manquant", "divergent"
+    statut_validation = Column(String, default="manquant")
     date_recuperation = Column(DateTime, default=datetime.utcnow)
 
 class Prediction(Base):
     __tablename__ = "predictions"
     id = Column(Integer, primary_key=True, index=True)
     match_id = Column(Integer, ForeignKey("matches.id"))
-    marche = Column(String) # "corners" ou "cartons"
-    ligne = Column(Float) # ex: 9.5
+    marche = Column(String)
+    ligne = Column(Float)
     probabilite_brute = Column(Float)
     probabilite_calibree = Column(Float, nullable=True)
     modele_version = Column(String)
-    meteo = Column(String, nullable=True) # Saisie utilisateur
-    style_adversaire = Column(String, nullable=True) # Saisie utilisateur
+    meteo = Column(String, nullable=True)
+    style_adversaire = Column(String, nullable=True)
+    date_prediction = Column(DateTime, default=datetime.utcnow)
     arbitre = Column(String, nullable=True)
     arbitre_profil = Column(String, nullable=True)
-    date_prediction = Column(DateTime, default=datetime.utcnow)
     resultat_reel = Column(Float, nullable=True)
     statut_prediction = Column(String, default="en_attente")
-    date_resultat = Column(DateTime, nullable=True)qc
+    date_resultat = Column(DateTime, nullable=True)
 
 class UserOdd(Base):
     __tablename__ = "user_odds"
@@ -72,7 +72,7 @@ class Decision(Base):
     id = Column(Integer, primary_key=True, index=True)
     prediction_id = Column(Integer, ForeignKey("predictions.id"))
     user_odds_id = Column(Integer, ForeignKey("user_odds.id"), nullable=True)
-    type_decision = Column(String) # "principale", "alternative", "rejet"
+    type_decision = Column(String)
     ev_calculee = Column(Float, nullable=True)
     raison_decision = Column(String)
     date_decision = Column(DateTime, default=datetime.utcnow)
