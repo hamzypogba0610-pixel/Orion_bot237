@@ -414,39 +414,54 @@ async def import_csv(url: str):
     if not SessionLocal: return {"erreur": "Pas de BDD"}
     db = SessionLocal()
     try:
+        # 1. Détection du championnat (avec les 10 ligues)
         nom_ligue = ""
         if "E0.csv" in url: nom_ligue = "Premier League"
         elif "SP1.csv" in url: nom_ligue = "La Liga"
         elif "I1.csv" in url: nom_ligue = "Serie A"
         elif "F1.csv" in url: nom_ligue = "Ligue 1"
         elif "D1.csv" in url: nom_ligue = "Bundesliga"
-        else: return {"erreur": "Lien non reconnu."}
+        elif "N1.csv" in url: nom_ligue = "Eredivisie"
+        elif "P1.csv" in url: nom_ligue = "Primeira Liga"
+        elif "B1.csv" in url: nom_ligue = "Pro League"
+        elif "T1.csv" in url: nom_ligue = "Süper Lig"
+        elif "G1.csv" in url: nom_ligue = "Super League"
+        else: return {"erreur": "Lien non reconnu. Vérifie le code du fichier (E0, SP1, I1, F1, D1, N1, P1, B1, T1, G1)."}
 
+        # 2. Recherche de la compétition dans la base
         competition_locale = db.query(Competition).filter(Competition.nom == nom_ligue).first()
         if not competition_locale:
-            return {"erreur": f"La compétition {nom_ligue} n'est pas dans la base."}
+            return {"erreur": f"La compétition {nom_ligue} n'est pas dans la base. Lance /init-competitions d'abord."}
         
         competition_id = competition_locale.id 
 
+        # 3. Téléchargement du fichier CSV
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=headers, follow_redirects=True)
         
-        if response.status_code != 200: return {"erreur": f"Erreur HTTP : {response.status_code}"}
+        if response.status_code != 200: 
+            return {"erreur": f"Erreur HTTP : {response.status_code}. Le fichier n'existe peut-être pas."}
             
         csv_file = io.StringIO(response.text)
         reader = csv.DictReader(csv_file)
         
-        matchs_ajoutes, stats_ajoutees = 0, 0
+        matchs_ajoutes = 0
+        stats_ajoutees = 0
 
+        # 4. Lecture et insertion des données
         for row in reader:
-            if not row.get('HomeTeam') or not row.get('AwayTeam') or not row.get('Date'): continue
+            if not row.get('HomeTeam') or not row.get('AwayTeam') or not row.get('Date'): 
+                continue
                 
+            # Génération d'un ID unique pour éviter les doublons
             fake_id_str = f"{row['HomeTeam']}{row['AwayTeam']}{row['Date']}"
             fake_id = int(hashlib.md5(fake_id_str.encode()).hexdigest()[:8], 16) % 2000000000
             
-            if db.query(Match).filter(Match.id_source_apifootball == fake_id).first(): continue
+            if db.query(Match).filter(Match.id_source_apifootball == fake_id).first(): 
+                continue
 
+            # Gestion de la date
             try:
                 date_obj = datetime.strptime(row['Date'], "%d/%m/%Y")
             except:
@@ -455,6 +470,7 @@ async def import_csv(url: str):
                 except:
                     date_obj = datetime.now()
 
+            # Création du match
             nouveau_match = Match(
                 competition_id=competition_id, date_heure=date_obj,
                 equipe_domicile=row['HomeTeam'], equipe_exterieur=row['AwayTeam'], statut="FT",
@@ -467,6 +483,7 @@ async def import_csv(url: str):
             db.refresh(nouveau_match)
             matchs_ajoutes += 1
 
+            # Création des statistiques (si disponibles dans le CSV)
             if row.get('HC') and row.get('AC'):
                 nouvelle_stat = MatchStat(
                     match_id=nouveau_match.id, source_api="csv-football-data",
@@ -488,7 +505,6 @@ async def import_csv(url: str):
         return {"erreur": str(e)}
     finally:
         db.close()
-
 @app.get("/sync-today")
 async def sync_today():
     api_key = os.getenv("API_FOOTBALL_KEY")
