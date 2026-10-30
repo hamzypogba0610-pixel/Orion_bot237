@@ -7,7 +7,7 @@ import numpy as np
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from app.db_models import Base, Competition, Match, MatchStat, Prediction
-from app.engine import calc_poisson, calc_binomiale_negative, calc_monte_carlo, calc_lambda_dixon_coles, calc_lambda_bayesien, calc_hawkes_impact, calc_shadow_market
+from app.engine import calc_poisson, calc_binomiale_negative, calc_monte_carlo, calc_lambda_dixon_coles, calc_lambda_bayesien, calc_hawkes_impact, calc_shadow_market, calc_live_corners
 from datetime import datetime
 from scipy.stats import poisson
 import asyncio
@@ -845,6 +845,64 @@ async def scan_today():
         return {
             "message": f"Scan terminé ! {len(opportunites)} opportunités trouvées.",
             "top_3": top_3
+        }
+    except Exception as e:
+        return {"erreur": str(e)}
+    finally:
+        db.close()
+
+@app.get("/predict-live/{match_id_local}")
+async def predict_live(
+    match_id_local: int, 
+    minute: int, 
+    corners_dom: int, 
+    corners_ext: int, 
+    score_dom: int, 
+    score_ext: int, 
+    ligne: float = 9.5
+):
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        match = db.query(Match).filter(Match.id == match_id_local).first()
+        if not match: return {"erreur": "Match introuvable."}
+
+        # On récupère les moyennes historiques des équipes (comme pour le pre-match)
+        stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.equipe_domicile == match.equipe_domicile).all()
+        corners_d, nb_d = 0, 0
+        for stat, m in stats_dom:
+            if stat.corners_domicile is not None:
+                corners_d += stat.corners_domicile; nb_d += 1
+        moy_dom = (corners_d / nb_d) if nb_d > 0 else 5.5
+
+        stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.equipe_exterieur == match.equipe_exterieur).all()
+        corners_e, nb_e = 0, 0
+        for stat, m in stats_ext:
+            if stat.corners_exterieur is not None:
+                corners_e += stat.corners_exterieur; nb_e += 1
+        moy_ext = (corners_e / nb_e) if nb_e > 0 else 4.0
+
+        # On appelle notre nouvelle fonction engine
+        corners_actuels_total = corners_dom + corners_ext
+        resultat_live = calc_live_corners(
+            moyenne_dom=moy_dom, 
+            moyenne_ext=moy_ext, 
+            minute_actuelle=minute, 
+            corners_actuels=corners_actuels_total, 
+            score_dom=score_dom, 
+            score_ext=score_ext, 
+            ligne=ligne
+        )
+
+        return {
+            "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
+            "etat_actuel": {
+                "minute": minute,
+                "score": f"{score_dom} - {score_ext}",
+                "corners_actuels": corners_actuels_total,
+                "ligne_visee": ligne
+            },
+            "analyse_live": resultat_live
         }
     except Exception as e:
         return {"erreur": str(e)}
