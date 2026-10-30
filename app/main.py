@@ -10,6 +10,7 @@ from app.db_models import Base, Competition, Match, MatchStat, Prediction
 from app.engine import calc_poisson, calc_binomiale_negative, calc_monte_carlo, calc_lambda_dixon_coles, calc_lambda_bayesien, calc_hawkes_impact, calc_shadow_market, calc_live_corners
 from datetime import datetime
 from scipy.stats import poisson
+from datetime import datetime, timedelta
 import asyncio
 import csv
 import io
@@ -520,74 +521,53 @@ async def sync_today():
     
     db = SessionLocal()
     try:
-        # 1. On demande la date d'aujourd'hui
+        # On demande les matchs d'aujourd'hui ET de demain (pour éviter le décalage horaire)
         aujourd_hui = datetime.now().strftime("%Y-%m-%d")
-        url = f"https://v3.football.api-sports.io/fixtures?date={aujourd_hui}"
-        headers = {"x-apisports-key": api_key}
+        demain = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
         
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers)
-        data = response.json()
-        
-        if data.get("results", 0) == 0: return {"message": "Aucun match aujourd'hui sur l'API."}
+        total_matchs_ajoutes = 0
 
-        top_leagues = [39, 140, 135, 61, 78, 88, 94, 144, 203, 197, 2, 3, 71, 307, 253]
-        matchs_ajoutes = 0
-
-        for m in data["response"]:
-            id_ligue = m["league"]["id"]
-            if id_ligue not in top_leagues: continue
-
-            id_match_api = m["fixture"]["id"]
-            competition_locale = db.query(Competition).filter(Competition.id_source == id_ligue).first()
+        for date_recherche in [aujourd_hui, demain]:
+            url = f"https://v3.football.api-sports.io/fixtures?date={date_recherche}"
+            headers = {"x-apisports-key": api_key}
             
-            if competition_locale:
-                # On vérifie si le match existe déjà
-                match_local = db.query(Match).filter(Match.id_source_apifootball == id_match_api).first()
-                if not match_local:
-                    date_str = m["fixture"]["date"].replace("Z", "+00:00")
-                    nouveau_match = Match(
-                        competition_id=competition_locale.id,
-                        date_heure=datetime.fromisoformat(date_str),
-                        equipe_domicile=m["teams"]["home"]["name"],
-                        equipe_exterieur=m["teams"]["away"]["name"],
-                        logo_domicile=m["teams"]["home"]["logo"],
-                        logo_exterieur=m["teams"]["away"]["logo"],
-                        statut=m["fixture"]["status"]["short"],
-                        id_source_apifootball=id_match_api,
-                        score_domicile=m["goals"]["home"],
-                        score_exterieur=m["goals"]["away"]
-                    )
-                    db.add(nouveau_match)
-                    matchs_ajoutes += 1
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=headers)
+            data = response.json()
+            
+            if data.get("results", 0) == 0: continue
+
+            # Toutes nos ligues (les 15)
+            top_leagues = [39, 140, 135, 61, 78, 88, 94, 144, 203, 197, 2, 3, 71, 307, 253]
+
+            for m in data["response"]:
+                id_ligue = m["league"]["id"]
+                if id_ligue not in top_leagues: continue
+
+                id_match_api = m["fixture"]["id"]
+                competition_locale = db.query(Competition).filter(Competition.id_source == id_ligue).first()
+                
+                if competition_locale:
+                    match_local = db.query(Match).filter(Match.id_source_apifootball == id_match_api).first()
+                    if not match_local:
+                        date_str = m["fixture"]["date"].replace("Z", "+00:00")
+                        nouveau_match = Match(
+                            competition_id=competition_locale.id,
+                            date_heure=datetime.fromisoformat(date_str),
+                            equipe_domicile=m["teams"]["home"]["name"],
+                            equipe_exterieur=m["teams"]["away"]["name"],
+                            statut=m["fixture"]["status"]["short"],
+                            id_source_apifootball=id_match_api,
+                            score_domicile=m["goals"]["home"],
+                            score_exterieur=m["goals"]["away"],
+                            logo_domicile=m["teams"]["home"]["logo"],
+                            logo_exterieur=m["teams"]["away"]["logo"]
+                        )
+                        db.add(nouveau_match)
+                        total_matchs_ajoutes += 1
         
         db.commit()
-        return {"message": f"Succès ! {matchs_ajoutes} matchs du jour ont été ajoutés."}
-    except Exception as e:
-        db.rollback()
-        return {"erreur": str(e)}
-    finally:
-        db.close()
-@app.post("/ajouter-resultat/{prediction_id}")
-async def ajouter_resultat(prediction_id: int, resultat_reel: float):
-    if not SessionLocal: return {"erreur": "Pas de BDD"}
-    db = SessionLocal()
-    try:
-        pred = db.query(Prediction).filter(Prediction.id == prediction_id).first()
-        if not pred: return {"erreur": "Prédiction introuvable."}
-
-        # On enregistre le résultat
-        pred.resultat_reel = resultat_reel
-        pred.date_resultat = datetime.utcnow()
-        
-        # On compare avec la ligne (ex: si la ligne est 9.5 et résultat 11, c'est gagné)
-        if resultat_reel > pred.ligne:
-            pred.statut_prediction = "gagne"
-        else:
-            pred.statut_prediction = "perdu"
-
-        db.commit()
-        return {"message": f"Résultat enregistré ! Statut : {pred.statut_prediction.upper()}"}
+        return {"message": f"Succès ! {total_matchs_ajoutes} matchs (aujourd'hui + demain) ont été ajoutés."}
     except Exception as e:
         db.rollback()
         return {"erreur": str(e)}
