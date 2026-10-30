@@ -75,6 +75,7 @@
             <div class="card">
                 <div class="input-group">
                     <div>
+                        <button onclick="actualiserMatchs()" id="btnSync" style="background-color: var(--blue); margin-bottom: 15px;">🔄 Actualiser les matchs du jour</button>
                         <label>Sélectionner un match</label>
                         <select id="matchId">
                             <option value="">Chargement des matchs...</option>
@@ -182,6 +183,28 @@
             document.getElementById(`nav-${tabName}`).classList.add('active');
 
             if(tabName === 'historique') chargerHistorique();
+        }
+        async function actualiserMatchs() {
+    const btn = document.getElementById('btnSync');
+    btn.innerText = "⏳ Recherche en cours...";
+    btn.disabled = true;
+
+    try {
+        const response = await fetch('/sync-today');
+        const result = await response.json();
+        
+        if(result.erreur) {
+            alert("Erreur : " + result.erreur);
+        } else {
+            alert("✅ " + result.message);
+            await chargerMatchs(); // On recharge la liste après l'ajout
+        }
+    } catch (e) {
+        alert("Erreur de connexion.");
+    } finally {
+        btn.innerText = "🔄 Actualiser les matchs du jour";
+        btn.disabled = false;
+    }
         }
 
         async function chargerMatchs() {
