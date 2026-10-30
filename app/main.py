@@ -637,3 +637,41 @@ async def clean_duplicates():
         return {"erreur": str(e)}
     finally:
         db.close()
+
+@app.get("/api/calibration")
+async def api_calibration():
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        # On récupère uniquement les prédictions qui ont un résultat
+        toutes_predictions = db.query(Prediction).filter(Prediction.statut_prediction != 'en_attente').all()
+        
+        total = len(toutes_predictions)
+        if total == 0: return {"message": "Pas encore assez de résultats pour calculer une calibration."}
+        
+        gagnees = sum(1 for p in toutes_predictions if p.statut_prediction == 'gagne')
+        taux_reussite_reel = (gagnees / total) * 100
+        
+        # On calcule la probabilité moyenne annoncée par le bot
+        proba_moyenne_annoncee = sum(p.probabilite_brute for p in toutes_predictions) / total
+        
+        # On regarde l'écart
+        ecart = taux_reussite_reel - proba_moyenne_annoncee
+        
+        statut = "Bien calibré ✅"
+        if ecart < -5: statut = "Trop confiant ⚠️ (baissez les probas)"
+        elif ecart > 5: statut = "Trop prudent 📈 (augmentez les probas)"
+
+        return {
+            "total_predictions_analysees": total,
+            "gagnees": gagnees,
+            "perdues": total - gagnees,
+            "taux_reussite_reel": round(taux_reussite_reel, 2),
+            "probabilite_moyenne_annoncee": round(proba_moyenne_annoncee, 2),
+            "ecart": round(ecart, 2),
+            "diagnostic_calibration": statut
+        }
+    except Exception as e:
+        return {"erreur": str(e)}
+    finally:
+        db.close()
