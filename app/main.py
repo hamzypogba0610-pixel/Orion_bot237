@@ -7,7 +7,7 @@ import numpy as np
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from app.db_models import Base, Competition, Match, MatchStat, Prediction
-from app.engine import calc_poisson, calc_binomiale_negative, calc_monte_carlo, calc_lambda_dixon_coles, calc_lambda_bayesien
+from app.engine import calc_poisson, calc_binomiale_negative, calc_monte_carlo, calc_lambda_dixon_coles, calc_lambda_bayesien, calc_hawkes_impact
 from datetime import datetime
 from scipy.stats import poisson
 import asyncio
@@ -686,7 +686,7 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec"):
         match = db.query(Match).filter(Match.id == match_id_local).first()
         if not match: return {"erreur": "Match introuvable."}
 
-        # 1. Calcul de la moyenne du championnat (pour le Bayésien)
+        # 1. Moyenne du championnat
         tous_les_matchs = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.competition_id == match.competition_id).all()
         total_corners_champ, nb_matchs_champ = 0, 0
         for stat, m in tous_les_matchs:
@@ -695,7 +695,7 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec"):
                 nb_matchs_champ += 1
         moy_championnat = (total_corners_champ / nb_matchs_champ) if nb_matchs_champ > 0 else 10.0
 
-        # 2. Récupération de l'historique pour Dixon-Coles et Bayésien (Equipe Domicile)
+        # 2. Historique Domicile
         stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.equipe_domicile == match.equipe_domicile).all()
         hist_dom = []
         total_corners_dom, nb_dom = 0, 0
@@ -705,7 +705,7 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec"):
                 total_corners_dom += stat.corners_domicile
                 nb_dom += 1
         
-        # 3. Récupération de l'historique (Equipe Extérieur)
+        # 3. Historique Extérieur
         stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.equipe_exterieur == match.equipe_exterieur).all()
         hist_ext = []
         total_corners_ext, nb_ext = 0, 0
@@ -715,18 +715,15 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec"):
                 total_corners_ext += stat.corners_exterieur
                 nb_ext += 1
 
-        # 4. Calcul des Lambdas (Moyennes attendues)
-        # Dixon-Coles (Temporel)
+        # 4. Calcul des Lambdas
         lambda_dc_dom = calc_lambda_dixon_coles(hist_dom) if nb_dom > 0 else moy_championnat / 2
         lambda_dc_ext = calc_lambda_dixon_coles(hist_ext) if nb_ext > 0 else moy_championnat / 2
         lambda_dc_total = lambda_dc_dom + lambda_dc_ext
 
-        # Bayésien (Shrinkage)
         lambda_bayes_dom = calc_lambda_bayesien(total_corners_dom, nb_dom, moy_championnat)
         lambda_bayes_ext = calc_lambda_bayesien(total_corners_ext, nb_ext, moy_championnat)
         lambda_bayes_total = lambda_bayes_dom + lambda_bayes_ext
 
-        # Moyenne Simple (pour Poisson et NBinom)
         lambda_simple_total = ((total_corners_dom / nb_dom) if nb_dom > 0 else moy_championnat / 2) + ((total_corners_ext / nb_ext) if nb_ext > 0 else moy_championnat / 2)
 
         # Impact Météo
@@ -735,17 +732,27 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec"):
         lambda_dc_total *= impact_meteo
         lambda_bayes_total *= impact_meteo
 
-        # 5. On demande les probabilités à notre moteur (engine.py) pour la ligne 9.5
-        ligne = 9.5
+        # --- 5. CALCUL HAWKES (Le modèle Alien) ---
+        liste_corners_dom = [h['corners'] for h in hist_dom]
+        liste_corners_ext = [h['corners'] for h in hist_ext]
+        impact_hawkes_dom = calc_hawkes_impact(liste_corners_dom)
+        impact_hawkes_ext = calc_hawkes_impact(liste_corners_ext)
         
+        lambda_hawkes_dom = ((total_corners_dom / nb_dom) * impact_hawkes_dom) if nb_dom > 0 else (moy_championnat / 2)
+        lambda_hawkes_ext = ((total_corners_ext / nb_ext) * impact_hawkes_ext) if nb_ext > 0 else (moy_championnat / 2)
+        lambda_hawkes_total = (lambda_hawkes_dom + lambda_hawkes_ext) * impact_meteo
+
+        # 6. Calcul des probabilités (Ligne 9.5)
+        ligne = 9.5
         p_poisson = calc_poisson(lambda_simple_total, ligne)
         p_nbinom = calc_binomiale_negative(lambda_simple_total, ligne)
         p_mc = calc_monte_carlo(lambda_simple_total, ligne)
         p_dc = calc_poisson(lambda_dc_total, ligne)
         p_bayes = calc_poisson(lambda_bayes_total, ligne)
+        p_hawkes = calc_poisson(lambda_hawkes_total, ligne)
 
-        # 6. Moteur de contradiction (Écart-type des 5 méthodes)
-        liste_probas = [p_poisson, p_nbinom, p_mc, p_dc, p_bayes]
+        # 7. Ensemble et Fiabilité
+        liste_probas = [p_poisson, p_nbinom, p_mc, p_dc, p_bayes, p_hawkes]
         moyenne_ensemble = np.mean(liste_probas)
         ecart_type = np.std(liste_probas)
 
@@ -758,14 +765,20 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec"):
             "moyennes_attendues": {
                 "simple": round(lambda_simple_total, 2),
                 "dixon_coles": round(lambda_dc_total, 2),
-                "bayesien": round(lambda_bayes_total, 2)
+                "bayesien": round(lambda_bayes_total, 2),
+                "hawkes": round(lambda_hawkes_total, 2)
+            },
+            "impact_hawkes": {
+                "dom": round(impact_hawkes_dom, 2),
+                "ext": round(impact_hawkes_ext, 2)
             },
             "probabilites_ligne_9_5": {
                 "poisson": round(p_poisson, 2),
                 "binomiale_negative": round(p_nbinom, 2),
                 "monte_carlo": round(p_mc, 2),
                 "dixon_coles": round(p_dc, 2),
-                "bayesien": round(p_bayes, 2)
+                "bayesien": round(p_bayes, 2),
+                "hawkes": round(p_hawkes, 2)
             },
             "ensemble_final": round(moyenne_ensemble, 2),
             "ecart_type": round(ecart_type, 2),
