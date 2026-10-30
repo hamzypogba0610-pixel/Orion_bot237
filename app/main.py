@@ -527,7 +527,7 @@ async def sync_today():
         
         if data.get("results", 0) == 0: return {"message": "Aucun match aujourd'hui sur l'API."}
 
-        top_leagues = [39, 140, 135, 61, 78]
+        top_leagues = [39, 140, 135, 61, 78, 88, 94, 144, 203, 197, 2, 3, 71, 307, 253]
         matchs_ajoutes = 0
 
         for m in data["response"]:
