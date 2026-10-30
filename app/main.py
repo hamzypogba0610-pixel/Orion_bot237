@@ -100,26 +100,44 @@ async def sauvegarder_prediction(
     if not SessionLocal: return {"erreur": "Pas de BDD"}
     db = SessionLocal()
     try:
-        pred_c = Prediction(
-            match_id=match_id_local, marche="corners", ligne=9.5,
-            probabilite_brute=p_corners, probabilite_calibree=p_corners,
-            modele_version="poisson-v1.0", date_prediction=datetime.utcnow(),
-            meteo=meteo, style_adversaire=style_adv,
-            arbitre=arbitre, arbitre_profil=arbitre_profil
-        )
-        db.add(pred_c)
+        # On vérifie si une prédiction existe déjà pour ce match (pour éviter les doublons)
+        pred_c = db.query(Prediction).filter(Prediction.match_id == match_id_local, Prediction.marche == "corners").first()
+        pred_k = db.query(Prediction).filter(Prediction.match_id == match_id_local, Prediction.marche == "cartons").first()
 
-        pred_k = Prediction(
-            match_id=match_id_local, marche="cartons", ligne=4.5,
-            probabilite_brute=p_cartons, probabilite_calibree=p_cartons,
-            modele_version="poisson-v1.0", date_prediction=datetime.utcnow(),
-            meteo=meteo, style_adversaire=style_adv,
-            arbitre=arbitre, arbitre_profil=arbitre_profil
-        )
-        db.add(pred_k)
+        # Mise à jour ou Création pour les Corners
+        if pred_c:
+            pred_c.probabilite_brute = p_corners
+            pred_c.meteo = meteo
+            pred_c.style_adversaire = style_adv
+            pred_c.arbitre = arbitre
+            pred_c.arbitre_profil = arbitre_profil
+            pred_c.date_prediction = datetime.utcnow()
+        else:
+            db.add(Prediction(
+                match_id=match_id_local, marche="corners", ligne=9.5,
+                probabilite_brute=p_corners, probabilite_calibree=p_corners,
+                modele_version="poisson-v1.0", date_prediction=datetime.utcnow(),
+                meteo=meteo, style_adversaire=style_adv, arbitre=arbitre, arbitre_profil=arbitre_profil
+            ))
+
+        # Mise à jour ou Création pour les Cartons
+        if pred_k:
+            pred_k.probabilite_brute = p_cartons
+            pred_k.meteo = meteo
+            pred_k.style_adversaire = style_adv
+            pred_k.arbitre = arbitre
+            pred_k.arbitre_profil = arbitre_profil
+            pred_k.date_prediction = datetime.utcnow()
+        else:
+            db.add(Prediction(
+                match_id=match_id_local, marche="cartons", ligne=4.5,
+                probabilite_brute=p_cartons, probabilite_calibree=p_cartons,
+                modele_version="poisson-v1.0", date_prediction=datetime.utcnow(),
+                meteo=meteo, style_adversaire=style_adv, arbitre=arbitre, arbitre_profil=arbitre_profil
+            ))
 
         db.commit()
-        return {"message": "Analyse et contexte sauvegardés avec succès !"}
+        return {"message": "Analyse enregistrée (ou mise à jour) avec succès !"}
     except Exception as e:
         db.rollback()
         return {"erreur": str(e)}
@@ -542,6 +560,60 @@ async def ajouter_resultat(prediction_id: int, resultat_reel: float):
         return {"message": f"Résultat enregistré ! Statut : {pred.statut_prediction.upper()}"}
     except Exception as e:
         db.rollback()
+        return {"erreur": str(e)}
+    finally:
+        db.close()
+
+@app.get("/predict-ft-score/{match_id_local}")
+async def predict_ft_score(match_id_local: int):
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        match = db.query(Match).filter(Match.id == match_id_local).first()
+        if not match: return {"erreur": "Match introuvable."}
+
+        # Calcul des moyennes de buts FT (Full Time)
+        stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
+            (Match.equipe_domicile == match.equipe_domicile) | (Match.equipe_exterieur == match.equipe_domicile)
+        ).all()
+        buts_dom, nb_matchs_dom = 0, 0
+        for stat, m in stats_dom:
+            if m.equipe_domicile == match.equipe_domicile and m.score_domicile is not None:
+                buts_dom += m.score_domicile; nb_matchs_dom += 1
+            elif m.equipe_exterieur == match.equipe_domicile and m.score_exterieur is not None:
+                buts_dom += m.score_exterieur; nb_matchs_dom += 1
+        moyenne_buts_dom = (buts_dom / nb_matchs_dom) if nb_matchs_dom > 0 else 1.5
+
+        stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
+            (Match.equipe_domicile == match.equipe_exterieur) | (Match.equipe_exterieur == match.equipe_exterieur)
+        ).all()
+        buts_ext, nb_matchs_ext = 0, 0
+        for stat, m in stats_ext:
+            if m.equipe_domicile == match.equipe_exterieur and m.score_domicile is not None:
+                buts_ext += m.score_domicile; nb_matchs_ext += 1
+            elif m.equipe_exterieur == match.equipe_exterieur and m.score_exterieur is not None:
+                buts_ext += m.score_exterieur; nb_matchs_ext += 1
+        moyenne_buts_ext = (buts_ext / nb_matchs_ext) if nb_matchs_ext > 0 else 1.2
+
+        # Calcul des probabilités pour le score final
+        scores_possibles = []
+        for i in range(6): # 0 à 5 buts
+            for j in range(6):
+                p_dom = poisson.pmf(i, moyenne_buts_dom)
+                p_ext = poisson.pmf(j, moyenne_buts_ext)
+                proba = p_dom * p_ext
+                scores_possibles.append({"score": f"{i}-{j}", "proba": proba})
+
+        scores_possibles.sort(key=lambda x: x["proba"], reverse=True)
+        top_3 = scores_possibles[:3]
+
+        return {
+            "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
+            "top_scores_finaux": [
+                {"score": s["score"], "probabilite": round(s["proba"] * 100, 2)} for s in top_3
+            ]
+        }
+    except Exception as e:
         return {"erreur": str(e)}
     finally:
         db.close()
