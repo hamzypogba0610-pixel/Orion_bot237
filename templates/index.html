@@ -127,6 +127,24 @@
         </div>
 
         <div id="page-historique" class="page">
+            <div class="card" id="statsCalibration" style="background: linear-gradient(135deg, #1e293b, #0f172a); display: none;">
+    <h3 style="font-size: 14px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 15px;">📊 Bilan de performance</h3>
+    <div style="display: flex; justify-content: space-between; text-align: center;">
+        <div>
+            <div style="font-size: 24px; font-weight: 800; color: var(--accent);" id="statTotal">0</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Analyses</div>
+        </div>
+        <div>
+            <div style="font-size: 24px; font-weight: 800; color: var(--accent);" id="statReussite">0%</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Réussite</div>
+        </div>
+        <div>
+            <div style="font-size: 24px; font-weight: 800; color: var(--blue);" id="statProba">0%</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Proba. Moy.</div>
+        </div>
+    </div>
+    <div id="statDiagnostic" style="margin-top: 15px; text-align: center; font-size: 12px; font-weight: 600; padding: 8px; border-radius: 6px; background: rgba(255,255,255,0.05);"></div>
+            </div>
             <div id="listeHistorique"></div>
         </div>
 
@@ -392,6 +410,30 @@ document.getElementById('ftScoresProbs').innerHTML = ftHtml;
     
     try {
         const response = await fetch('/api/historique');
+        // Appel des statistiques de calibration
+const resStats = await fetch('/api/calibration');
+const stats = await resStats.json();
+
+if (!stats.erreur && stats.total_predictions_analysees > 0) {
+    const statsDiv = document.getElementById('statsCalibration');
+    statsDiv.style.display = 'block';
+    
+    document.getElementById('statTotal').innerText = stats.total_predictions_analysees;
+    document.getElementById('statReussite').innerText = stats.taux_reussite_reel + '%';
+    document.getElementById('statProba').innerText = stats.probabilite_moyenne_annoncee + '%';
+    
+    const diagDiv = document.getElementById('statDiagnostic');
+    diagDiv.innerText = stats.diagnostic_calibration;
+    
+    // Couleur du diagnostic
+    if (stats.diagnostic_calibration.includes('Bien')) {
+        diagDiv.style.color = 'var(--accent)';
+    } else if (stats.diagnostic_calibration.includes('confiant')) {
+        diagDiv.style.color = 'var(--danger)';
+    } else {
+        diagDiv.style.color = 'var(--blue)';
+    }
+}
         const historique = await response.json();
         
         if (historique.erreur) {
