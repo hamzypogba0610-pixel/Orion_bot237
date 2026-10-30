@@ -756,9 +756,15 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
         moyenne_ensemble = np.mean(liste_probas)
         ecart_type = np.std(liste_probas)
 
+        # Nouveau calcul de fiabilité : on compte combien de modèles sont proches de la moyenne
+        modeles_proches = sum(1 for p in liste_probas if abs(p - moyenne_ensemble) <= 10)
+
+        if modeles_proches >= 6: 
         fiabilite = "HAUTE ✅"
-        if ecart_type > 4.0: fiabilite = "MOYENNE ⚠️"
-        if ecart_type > 8.0: fiabilite = "FAIBLE ❌ (Divergence)"
+        elif modeles_proches >= 4: 
+        fiabilite = "MOYENNE ⚠️"
+        else: 
+            fiabilite = "FAIBLE ❌ (Divergence)"
 
         # 8. SHADOW MARKET (Le modèle Alien)
         shadow_result = calc_shadow_market(moyenne_ensemble, cote)
