@@ -7,7 +7,7 @@ import numpy as np
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from app.db_models import Base, Competition, Match, MatchStat, Prediction
-from app.engine import calc_poisson, calc_binomiale_negative, calc_monte_carlo, calc_lambda_dixon_coles, calc_lambda_bayesien, calc_hawkes_impact
+from app.engine import calc_poisson, calc_binomiale_negative, calc_monte_carlo, calc_lambda_dixon_coles, calc_lambda_bayesien, calc_hawkes_impact, calc_shadow_market
 from datetime import datetime
 from scipy.stats import poisson
 import asyncio
