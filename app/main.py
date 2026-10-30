@@ -804,37 +804,47 @@ async def scan_today():
     if not SessionLocal: return {"erreur": "Pas de BDD"}
     db = SessionLocal()
     try:
+        # On prend les 15 derniers matchs
         matchs_du_jour = db.query(Match).order_by(Match.id.desc()).limit(15).all()
-        if not matchs_du_jour: return {"message": "Aucun match à venir aujourd'hui."}
+        if not matchs_du_jour: return {"message": "Aucun match dans la base."}
 
-        meilleures_options = []
+        diagnostic = []
 
-        for match in matchs_du_jour[:15]: # On limite à 15 matchs pour la vitesse
-            if match.statut == "FT": continue
-
+        for match in matchs_du_jour:
+            if match.statut == "FT": 
+                statut_match = "Terminé"
+            else:
+                statut_match = "À venir"
+                
             try:
-                # On appelle notre cerveau à 7 modèles
+                # On appelle le moteur 7 modèles
                 res = await predict_ensemble(match.id, meteo="Sec", cote=1.85)
                 
-                # On ne garde que les fiabilités HAUTES
-                if res.get("fiabilite") and "HAUTE" in res["fiabilite"]:
-                    meilleures_options.append({
-                        "match_id": match.id,
+                if "erreur" in res:
+                    diagnostic.append({
                         "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
-                        "marche": "Corners (+9.5)",
-                        "probabilite": res["ensemble_final"],
-                        "fiabilite": res["fiabilite"]
+                        "statut_match": statut_match,
+                        "erreur": res["erreur"]
                     })
-            except Exception:
-                continue
-
-        # On trie par probabilité décroissante
-        meilleures_options.sort(key=lambda x: x["probabilite"], reverse=True)
-        top_3 = meilleures_options[:3]
+                else:
+                    diagnostic.append({
+                        "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
+                        "statut_match": statut_match,
+                        "probabilite": res["ensemble_final"],
+                        "fiabilite": res["fiabilite"],
+                        "ecart_type": res["ecart_type"],
+                        "nb_modeles_proches": res.get("nb_modeles_proches", "N/A")
+                    })
+            except Exception as e:
+                diagnostic.append({
+                    "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
+                    "statut_match": statut_match,
+                    "erreur": str(e)
+                })
 
         return {
-            "message": f"Scan terminé ! {len(meilleures_options)} opportunités fiables trouvées.",
-            "top_3": top_3
+            "message": "Voici le diagnostic des 15 derniers matchs :",
+            "resultats": diagnostic
         }
     except Exception as e:
         return {"erreur": str(e)}
