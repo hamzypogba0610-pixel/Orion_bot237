@@ -119,3 +119,45 @@ def calc_shadow_market(proba_ensemble, cote_bookmaker):
         "edge": round(edge, 2),
         "statut_shadow_market": statut
     }
+
+def calc_live_corners(moyenne_dom, moyenne_ext, minute_actuelle, corners_actuels, score_dom, score_ext, ligne):
+    """
+    Calcule la probabilité de corners en Live en tenant compte du temps restant et du score.
+    """
+    # 1. Temps restant (on considère 90 minutes de jeu)
+    temps_restant = max(0, 90 - minute_actuelle)
+    
+    # 2. Intensité de base (Corners par minute)
+    # Moyenne totale attendue sur le match / 90
+    intensite_par_minute = (moyenne_dom + moyenne_ext) / 90
+    
+    # 3. Ajustement selon le score (L'équipe qui perd pousse plus)
+    facteur_enjeu = 1.0
+    ecart_buts = abs(score_dom - score_ext)
+    
+    if ecart_buts == 0:
+        facteur_enjeu = 1.05 # Match nul, on pousse un peu
+    elif ecart_buts == 1:
+        facteur_enjeu = 1.15 # 1 but d'écart, l'équipe qui perd attaque fort (+15%)
+    else:
+        facteur_enjeu = 1.25 # 2 buts d'écart, jeu plus ouvert ou équipe qui abandonne (+25%)
+        
+    # 4. Calcul du Lambda pour le temps restant
+    lambda_restant = temps_restant * intensite_par_minute * facteur_enjeu
+    
+    # 5. Combien de corners manque-t-il pour dépasser la ligne ?
+    # Si ligne = 9.5 et qu'il y a 5 corners, il en manque 5 pour atteindre 10.
+    corners_manquants = max(0, ligne - corners_actuels)
+    
+    # 6. Probabilité avec Poisson
+    # On veut P(X > corners_manquants), donc 1 - P(X <= corners_manquants)
+    p_live = (1 - poisson.cdf(int(np.floor(corners_manquants)), lambda_restant)) * 100
+    
+    return {
+        "temps_restant_min": temps_restant,
+        "intensite_par_minute": round(intensite_par_minute, 3),
+        "facteur_enjeu": facteur_enjeu,
+        "lambda_restant": round(lambda_restant, 2),
+        "corners_manquants": corners_manquants,
+        "probabilite_live": round(p_live, 2)
+    }
