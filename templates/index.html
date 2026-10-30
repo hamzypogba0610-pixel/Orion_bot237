@@ -89,6 +89,29 @@
             
             <div id="resultats" style="display: none;">
                 <div class="match-title" id="matchTitle"></div>
+                <!-- NOUVELLE CARTE : MOTEUR D'ENSEMBLE -->
+<div class="market-card" style="border: 2px solid var(--blue); background: linear-gradient(135deg, #1e293b, #0f172a);">
+    <div class="market-header">
+        <span class="market-title" style="color: var(--blue);">🧠 Moteur d'Ensemble (7 Modèles)</span>
+        <span class="market-total" id="ensembleFiabilite" style="background:var(--blue); color:#fff;">...</span>
+    </div>
+    
+    <div style="text-align: center; margin-bottom: 15px;">
+        <div style="font-size: 32px; font-weight: 800; color: var(--accent);" id="ensembleProbaFinale">--%</div>
+        <div style="font-size: 12px; color: var(--text-muted);">Probabilité de +9.5 Corners (Ensemble)</div>
+    </div>
+
+    <div id="shadowMarketResult" style="margin-bottom: 15px; font-size: 13px; text-align: center; font-weight: bold;"></div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
+        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Poisson: <span id="m_poisson" style="float:right; font-weight:bold;"></span></div>
+        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Binom. Nég: <span id="m_nbinom" style="float:right; font-weight:bold;"></span></div>
+        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Monte Carlo: <span id="m_mc" style="float:right; font-weight:bold;"></span></div>
+        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Dixon-Coles: <span id="m_dc" style="float:right; font-weight:bold;"></span></div>
+        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Bayésien: <span id="m_bayes" style="float:right; font-weight:bold;"></span></div>
+        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid var(--blue);">Hawkes: <span id="m_hawkes" style="float:right; font-weight:bold; color:var(--blue);"></span></div>
+    </div>
+</div>
                 <div id="contextInfo" style="font-size: 12px; color: var(--text-muted); text-align: center; margin-bottom: 15px; background: var(--bg-card); padding: 10px; border-radius: 8px; display: none;"></div>
                 
                 <div class="market-card">
@@ -275,6 +298,9 @@
                 const dataC = await resC.json();
                 const resK = await fetch(`/predict-cards/${matchId}`);
                 const dataK = await resK.json();
+                // Appel du Moteur d'Ensemble (avec cote 1.85 par défaut pour le test)
+                const resEnsemble = await fetch(`/predict-ensemble/${matchId}?cote=1.85`);
+                const dataEnsemble = await resEnsemble.json();
                 const resHT = await fetch(`/predict-ht-score/${matchId}`);
                 const dataHT = await resHT.json();
 
@@ -333,7 +359,40 @@ if (dataC.contexte) {
     `;
 });
 document.getElementById('ftScoresProbs').innerHTML = ftHtml;
+// --- REMPLISSAGE DU MOTEUR D'ENSEMBLE ---
+if (dataEnsemble.ensemble_final) {
+    document.getElementById('ensembleProbaFinale').innerText = dataEnsemble.ensemble_final + '%';
+    document.getElementById('ensembleFiabilite').innerText = dataEnsemble.fiabilite;
+    
+    // Couleur de la fiabilité
+    if(dataEnsemble.fiabilite.includes('HAUTE')) document.getElementById('ensembleFiabilite').style.background = 'var(--accent)';
+    if(dataEnsemble.fiabilite.includes('MOYENNE')) document.getElementById('ensembleFiabilite').style.background = '#f59e0b';
+    if(dataEnsemble.fiabilite.includes('FAIBLE')) document.getElementById('ensembleFiabilite').style.background = 'var(--danger)';
 
+    // Remplissage des 6 modèles
+    document.getElementById('m_poisson').innerText = dataEnsemble.probabilites_ligne_9_5.poisson + '%';
+    document.getElementById('m_nbinom').innerText = dataEnsemble.probabilites_ligne_9_5.binomiale_negative + '%';
+    document.getElementById('m_mc').innerText = dataEnsemble.probabilites_ligne_9_5.monte_carlo + '%';
+    document.getElementById('m_dc').innerText = dataEnsemble.probabilites_ligne_9_5.dixon_coles + '%';
+    document.getElementById('m_bayes').innerText = dataEnsemble.probabilites_ligne_9_5.bayesien + '%';
+    document.getElementById('m_hawkes').innerText = dataEnsemble.probabilites_ligne_9_5.hawkes + '%';
+
+    // Affichage du Shadow Market
+    const shadowDiv = document.getElementById('shadowMarketResult');
+    if (dataEnsemble.shadow_market && !dataEnsemble.shadow_market.erreur) {
+        shadowDiv.style.display = 'block';
+        let edge = dataEnsemble.shadow_market.edge;
+        let statut = dataEnsemble.shadow_market.statut_shadow_market;
+        
+        shadowDiv.innerHTML = `Cote: ${dataEnsemble.shadow_market.cote_saisie} | Edge: ${edge}% <br> <span style="font-size:14px;">${statut}</span>`;
+        
+        if (edge > 5) shadowDiv.style.color = 'var(--accent)';
+        else if (edge > 0) shadowDiv.style.color = '#f59e0b';
+        else shadowDiv.style.color = 'var(--danger)';
+    } else {
+        shadowDiv.style.display = 'none';
+    }
+            }
                 document.getElementById('resultats').style.display = 'block';
             } catch (e) { alert("Erreur de connexion."); }
         }
