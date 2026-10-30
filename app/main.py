@@ -3,9 +3,11 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 import os
 import httpx
+import numpy as np
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from app.db_models import Base, Competition, Match, MatchStat, Prediction
+from app.engine import calc_poisson, calc_binomiale_negative, calc_monte_carlo, calc_lambda_dixon_coles, calc_lambda_bayesien
 from datetime import datetime
 from scipy.stats import poisson
 import asyncio
@@ -670,6 +672,104 @@ async def api_calibration():
             "probabilite_moyenne_annoncee": round(proba_moyenne_annoncee, 2),
             "ecart": round(ecart, 2),
             "diagnostic_calibration": statut
+        }
+    except Exception as e:
+        return {"erreur": str(e)}
+    finally:
+        db.close()
+
+@app.get("/predict-ensemble/{match_id_local}")
+async def predict_ensemble(match_id_local: int, meteo: str = "Sec"):
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        match = db.query(Match).filter(Match.id == match_id_local).first()
+        if not match: return {"erreur": "Match introuvable."}
+
+        # 1. Calcul de la moyenne du championnat (pour le Bayésien)
+        tous_les_matchs = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.competition_id == match.competition_id).all()
+        total_corners_champ, nb_matchs_champ = 0, 0
+        for stat, m in tous_les_matchs:
+            if stat.corners_domicile is not None and stat.corners_exterieur is not None:
+                total_corners_champ += (stat.corners_domicile + stat.corners_exterieur)
+                nb_matchs_champ += 1
+        moy_championnat = (total_corners_champ / nb_matchs_champ) if nb_matchs_champ > 0 else 10.0
+
+        # 2. Récupération de l'historique pour Dixon-Coles et Bayésien (Equipe Domicile)
+        stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.equipe_domicile == match.equipe_domicile).all()
+        hist_dom = []
+        total_corners_dom, nb_dom = 0, 0
+        for stat, m in stats_dom:
+            if stat.corners_domicile is not None:
+                hist_dom.append({"corners": stat.corners_domicile, "date": m.date_heure})
+                total_corners_dom += stat.corners_domicile
+                nb_dom += 1
+        
+        # 3. Récupération de l'historique (Equipe Extérieur)
+        stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.equipe_exterieur == match.equipe_exterieur).all()
+        hist_ext = []
+        total_corners_ext, nb_ext = 0, 0
+        for stat, m in stats_ext:
+            if stat.corners_exterieur is not None:
+                hist_ext.append({"corners": stat.corners_exterieur, "date": m.date_heure})
+                total_corners_ext += stat.corners_exterieur
+                nb_ext += 1
+
+        # 4. Calcul des Lambdas (Moyennes attendues)
+        # Dixon-Coles (Temporel)
+        lambda_dc_dom = calc_lambda_dixon_coles(hist_dom) if nb_dom > 0 else moy_championnat / 2
+        lambda_dc_ext = calc_lambda_dixon_coles(hist_ext) if nb_ext > 0 else moy_championnat / 2
+        lambda_dc_total = lambda_dc_dom + lambda_dc_ext
+
+        # Bayésien (Shrinkage)
+        lambda_bayes_dom = calc_lambda_bayesien(total_corners_dom, nb_dom, moy_championnat)
+        lambda_bayes_ext = calc_lambda_bayesien(total_corners_ext, nb_ext, moy_championnat)
+        lambda_bayes_total = lambda_bayes_dom + lambda_bayes_ext
+
+        # Moyenne Simple (pour Poisson et NBinom)
+        lambda_simple_total = ((total_corners_dom / nb_dom) if nb_dom > 0 else moy_championnat / 2) + ((total_corners_ext / nb_ext) if nb_ext > 0 else moy_championnat / 2)
+
+        # Impact Météo
+        impact_meteo = 0.90 if meteo == "Pluie" else (0.85 if meteo == "Vent fort" else 1.0)
+        lambda_simple_total *= impact_meteo
+        lambda_dc_total *= impact_meteo
+        lambda_bayes_total *= impact_meteo
+
+        # 5. On demande les probabilités à notre moteur (engine.py) pour la ligne 9.5
+        ligne = 9.5
+        
+        p_poisson = calc_poisson(lambda_simple_total, ligne)
+        p_nbinom = calc_binomiale_negative(lambda_simple_total, ligne)
+        p_mc = calc_monte_carlo(lambda_simple_total, ligne)
+        p_dc = calc_poisson(lambda_dc_total, ligne)
+        p_bayes = calc_poisson(lambda_bayes_total, ligne)
+
+        # 6. Moteur de contradiction (Écart-type des 5 méthodes)
+        liste_probas = [p_poisson, p_nbinom, p_mc, p_dc, p_bayes]
+        moyenne_ensemble = np.mean(liste_probas)
+        ecart_type = np.std(liste_probas)
+
+        fiabilite = "HAUTE ✅"
+        if ecart_type > 4.0: fiabilite = "MOYENNE ⚠️"
+        if ecart_type > 8.0: fiabilite = "FAIBLE ❌ (Divergence)"
+
+        return {
+            "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
+            "moyennes_attendues": {
+                "simple": round(lambda_simple_total, 2),
+                "dixon_coles": round(lambda_dc_total, 2),
+                "bayesien": round(lambda_bayes_total, 2)
+            },
+            "probabilites_ligne_9_5": {
+                "poisson": round(p_poisson, 2),
+                "binomiale_negative": round(p_nbinom, 2),
+                "monte_carlo": round(p_mc, 2),
+                "dixon_coles": round(p_dc, 2),
+                "bayesien": round(p_bayes, 2)
+            },
+            "ensemble_final": round(moyenne_ensemble, 2),
+            "ecart_type": round(ecart_type, 2),
+            "fiabilite": fiabilite
         }
     except Exception as e:
         return {"erreur": str(e)}
