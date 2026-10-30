@@ -679,7 +679,7 @@ async def api_calibration():
         db.close()
 
 @app.get("/predict-ensemble/{match_id_local}")
-async def predict_ensemble(match_id_local: int, meteo: str = "Sec"):
+async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float = 1.85):
     if not SessionLocal: return {"erreur": "Pas de BDD"}
     db = SessionLocal()
     try:
@@ -732,7 +732,7 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec"):
         lambda_dc_total *= impact_meteo
         lambda_bayes_total *= impact_meteo
 
-        # --- 5. CALCUL HAWKES (Le modèle Alien) ---
+        # 5. CALCUL HAWKES
         liste_corners_dom = [h['corners'] for h in hist_dom]
         liste_corners_ext = [h['corners'] for h in hist_ext]
         impact_hawkes_dom = calc_hawkes_impact(liste_corners_dom)
@@ -760,6 +760,9 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec"):
         if ecart_type > 4.0: fiabilite = "MOYENNE ⚠️"
         if ecart_type > 8.0: fiabilite = "FAIBLE ❌ (Divergence)"
 
+        # 8. SHADOW MARKET (Le modèle Alien)
+        shadow_result = calc_shadow_market(moyenne_ensemble, cote)
+
         return {
             "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
             "moyennes_attendues": {
@@ -782,7 +785,8 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec"):
             },
             "ensemble_final": round(moyenne_ensemble, 2),
             "ecart_type": round(ecart_type, 2),
-            "fiabilite": fiabilite
+            "fiabilite": fiabilite,
+            "shadow_market": shadow_result
         }
     except Exception as e:
         return {"erreur": str(e)}
