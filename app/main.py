@@ -57,11 +57,14 @@ async def api_historique():
         resultat = []
         for p, m in predictions:
             resultat.append({
+                "id": p.id,
                 "match": f"{m.equipe_domicile} vs {m.equipe_exterieur}",
                 "marche": p.marche,
                 "ligne": p.ligne,
                 "probabilite": p.probabilite_brute,
-                "date": p.date_prediction.strftime("%d/%m/%Y %H:%M") if p.date_prediction else "Date inconnue"
+                "date": p.date_prediction.strftime("%d/%m/%Y %H:%M") if p.date_prediction else "Date inconnue",
+                "statut": p.statut_prediction,
+                "resultat_reel": p.resultat_reel
             })
         return resultat
     except Exception as e:
@@ -512,6 +515,31 @@ async def sync_today():
         
         db.commit()
         return {"message": f"Succès ! {matchs_ajoutes} matchs du jour ont été ajoutés."}
+    except Exception as e:
+        db.rollback()
+        return {"erreur": str(e)}
+    finally:
+        db.close()
+@app.post("/ajouter-resultat/{prediction_id}")
+async def ajouter_resultat(prediction_id: int, resultat_reel: float):
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        pred = db.query(Prediction).filter(Prediction.id == prediction_id).first()
+        if not pred: return {"erreur": "Prédiction introuvable."}
+
+        # On enregistre le résultat
+        pred.resultat_reel = resultat_reel
+        pred.date_resultat = datetime.utcnow()
+        
+        # On compare avec la ligne (ex: si la ligne est 9.5 et résultat 11, c'est gagné)
+        if resultat_reel > pred.ligne:
+            pred.statut_prediction = "gagne"
+        else:
+            pred.statut_prediction = "perdu"
+
+        db.commit()
+        return {"message": f"Résultat enregistré ! Statut : {pred.statut_prediction.upper()}"}
     except Exception as e:
         db.rollback()
         return {"erreur": str(e)}
