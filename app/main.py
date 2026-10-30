@@ -341,10 +341,10 @@ async def home():
             } catch (e) { container.innerHTML = '<p style="color:red;">Erreur de connexion.</p>'; }
         }
     </script>
-</body>
-</html>
-"""
-return HTMLResponse(content=html_content)
+    </body>
+    </html>
+     """
+    return HTMLResponse(content=html_content)
 
 @app.get("/api/matchs")
 async def api_matchs():
