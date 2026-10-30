@@ -22,6 +22,8 @@ class Match(Base):
     id_source_apifootball = Column(Integer, unique=True) # L'ID du match dans l'API
     score_domicile = Column(Integer, nullable=True)
     score_exterieur = Column(Integer, nullable=True)
+    logo_domicile = Column(String, nullable=True)
+    logo_exterieur = Column(String, nullable=True)
 
 class MatchStat(Base):
     __tablename__ = "match_stats"
