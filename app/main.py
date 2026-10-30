@@ -100,11 +100,10 @@ async def sauvegarder_prediction(
     if not SessionLocal: return {"erreur": "Pas de BDD"}
     db = SessionLocal()
     try:
-        # On vérifie si une prédiction existe déjà pour ce match (pour éviter les doublons)
-        pred_c = db.query(Prediction).filter(Prediction.match_id == match_id_local, Prediction.marche == "corners").first()
-        pred_k = db.query(Prediction).filter(Prediction.match_id == match_id_local, Prediction.marche == "cartons").first()
+        # ON AJOUTE order_by(Prediction.id.desc()).first() ICI
+        pred_c = db.query(Prediction).filter(Prediction.match_id == match_id_local, Prediction.marche == "corners").order_by(Prediction.id.desc()).first()
+        pred_k = db.query(Prediction).filter(Prediction.match_id == match_id_local, Prediction.marche == "cartons").order_by(Prediction.id.desc()).first()
 
-        # Mise à jour ou Création pour les Corners
         if pred_c:
             pred_c.probabilite_brute = p_corners
             pred_c.meteo = meteo
@@ -120,7 +119,6 @@ async def sauvegarder_prediction(
                 meteo=meteo, style_adversaire=style_adv, arbitre=arbitre, arbitre_profil=arbitre_profil
             ))
 
-        # Mise à jour ou Création pour les Cartons
         if pred_k:
             pred_k.probabilite_brute = p_cartons
             pred_k.meteo = meteo
@@ -623,22 +621,17 @@ async def clean_duplicates():
     if not SessionLocal: return {"erreur": "Pas de BDD"}
     db = SessionLocal()
     try:
-        from sqlalchemy import func
-        
-        # 1. On trouve les ID max à garder (le plus récent) pour chaque match et chaque marché
-        sous_requete = db.query(
-            Prediction.match_id, 
-            Prediction.marche, 
-            func.max(Prediction.id).label('max_id')
-        ).group_by(Prediction.match_id, Prediction.marche).subquery()
-
-        # 2. On supprime tout ce qui n'est pas dans cette liste (donc les anciens doublons)
-        nb_supprimes = db.query(Prediction).filter(
-            ~Prediction.id.in_(db.select(sous_requete.c.max_id))
-        ).delete(synchronize_session=False)
-        
+        # On utilise une commande SQL directe pour supprimer les doublons
+        # On garde uniquement l'ID le plus récent (le plus grand) pour chaque match et chaque marché
+        sql = text("""
+            DELETE FROM predictions a USING predictions b
+            WHERE a.id < b.id 
+            AND a.match_id = b.match_id 
+            AND a.marche = b.marche;
+        """)
+        result = db.execute(sql)
         db.commit()
-        return {"message": f"Ménage terminé ! {nb_supprimes} anciens doublons ont été supprimés de l'historique."}
+        return {"message": f"Ménage terminé ! {result.rowcount} anciens doublons ont été supprimés."}
     except Exception as e:
         db.rollback()
         return {"erreur": str(e)}
