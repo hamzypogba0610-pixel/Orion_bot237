@@ -74,294 +74,210 @@
         </div>
 
         <div id="page-analyse" class="page active">
-    
-    <!-- NOUVEAU : LE SCANNER ORION RADAR -->
-    <div class="card" style="border: 2px solid var(--accent); background: linear-gradient(135deg, #1e293b, #0f172a);">
-        <h3 style="color: var(--accent); margin-bottom: 10px; text-align: center;">🛰️ ORION Radar</h3>
-        <p style="font-size: 12px; color: var(--text-muted); text-align: center; margin-bottom: 15px;">Laisse l'IA scanner les matchs et trouver les meilleures opportunités.</p>
-        <button onclick="lancerScanner()" id="btnScan" style="background-color: var(--accent);">🚀 Scanner le Top 3</button>
-        <div id="scanResultats" style="display: none; margin-top: 15px;"></div>
-    </div>
+            
+            <!-- RADAR -->
+            <div class="card" style="border: 2px solid var(--accent); background: linear-gradient(135deg, #1e293b, #0f172a);">
+                <h3 style="color: var(--accent); margin-bottom: 10px; text-align: center;">🛰️ ORION Radar</h3>
+                <p style="font-size: 12px; color: var(--text-muted); text-align: center; margin-bottom: 15px;">Laisse l'IA scanner les matchs et trouver les meilleures opportunités.</p>
+                <button onclick="lancerScanner()" id="btnScan" style="background-color: var(--accent);">🚀 Scanner le Top 3</button>
+                <div id="scanResultats" style="display: none; margin-top: 15px;"></div>
+            </div>
 
-    <div class="card">
-        <div class="input-group">
-            <button onclick="actualiserMatchs()" id="btnSync" style="background-color: var(--blue); margin-bottom: 10px;">🔄 Actualiser les matchs du jour</button>
-            <div>
-                <label>Sélectionner un match</label>
-                <select id="matchId">
-                    <option value="">Chargement des matchs...</option>
-                </select>
-            </div>
-            <button onclick="analyserMatch()">🧠 Analyser le match (Pre-match)</button>
-            
-            <!-- NOUVEAU : LE MODE LIVE -->
-            <button onclick="toggleLiveForm()" id="btnToggleLive" style="background-color: transparent; border: 1px solid var(--danger); color: var(--danger); margin-top: 10px;">🔴 Mode Live Betting</button>
-            
-            <div id="liveForm" style="display: none; background: var(--bg-dark); padding: 15px; border-radius: 8px; border: 1px solid var(--danger); margin-top: 15px;">
-                <h4 style="color: var(--danger); margin-bottom: 10px;">🔴 Analyse en Direct</h4>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
-                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Poisson: <span id="m_poisson" style="float:right; font-weight:bold;"></span></div>
-                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Binom. Nég: <span id="m_nbinom" style="float:right; font-weight:bold;"></span></div>
-                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Monte Carlo: <span id="m_mc" style="float:right; font-weight:bold;"></span></div>
-                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Dixon-Coles: <span id="m_dc" style="float:right; font-weight:bold;"></span></div>
-                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Bayésien: <span id="m_bayes" style="float:right; font-weight:bold;"></span></div>
-                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid var(--blue);">Hawkes: <span id="m_hawkes" style="float:right; font-weight:bold; color:var(--blue);"></span></div>
-                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid #a855f7;">Kalman: <span id="m_kalman" style="float:right; font-weight:bold; color:#a855f7;"></span></div>
-                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid #ec4899;">Markov: <span id="m_markov" style="float:right; font-weight:bold; color:#ec4899;"></span></div>
-            </div>
-                <div style="margin-top: 10px;">
-                    <label>Cote du bookmaker (Live)</label>
-                    <input type="number" step="0.01" id="liveCote" value="2.10">
+            <div class="card">
+                <div class="input-group">
+                    <button onclick="actualiserMatchs()" id="btnSync" style="background-color: var(--blue); margin-bottom: 10px;">🔄 Actualiser les matchs du jour</button>
+                    <div>
+                        <label>Sélectionner un match</label>
+                        <select id="matchId">
+                            <option value="">Chargement des matchs...</option>
+                        </select>
+                    </div>
+                    <button onclick="analyserMatch()">🧠 Analyser le match (Pre-match)</button>
+                    
+                    <button onclick="toggleLiveForm()" id="btnToggleLive" style="background-color: transparent; border: 1px solid var(--danger); color: var(--danger); margin-top: 10px;">🔴 Mode Live Betting</button>
+                    
+                    <div id="liveForm" style="display: none; background: var(--bg-dark); padding: 15px; border-radius: 8px; border: 1px solid var(--danger); margin-top: 15px;">
+                        <h4 style="color: var(--danger); margin-bottom: 10px;">🔴 Analyse en Direct</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            <div><label>Minute</label><input type="number" id="liveMinute" value="60"></div>
+                            <div><label>Ligne visée</label><input type="number" step="0.5" id="liveLigne" value="9.5"></div>
+                            <div><label>Corners Dom</label><input type="number" id="liveCornersDom" value="3"></div>
+                            <div><label>Corners Ext</label><input type="number" id="liveCornersExt" value="2"></div>
+                            <div><label>Score Dom</label><input type="number" id="liveScoreDom" value="1"></div>
+                            <div><label>Score Ext</label><input type="number" id="liveScoreExt" value="0"></div>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <label>Cote du bookmaker (Live)</label>
+                            <input type="number" step="0.01" id="liveCote" value="2.10">
+                        </div>
+                        <button onclick="analyserLive()" style="background-color: var(--danger); margin-top: 15px;">⚡ Calculer la Value Live</button>
+                    </div>
                 </div>
-                <button onclick="analyserLive()" style="background-color: var(--danger); margin-top: 15px;">⚡ Calculer la Value Live</button>
             </div>
-        </div>
-    </div>
+
             <div id="resultats" style="display: none;">
                 <div class="match-title" id="matchTitle"></div>
-                <!-- NOUVELLE CARTE : MOTEUR D'ENSEMBLE -->
-<div class="market-card" style="border: 2px solid var(--blue); background: linear-gradient(135deg, #1e293b, #0f172a);">
-    <div class="market-header">
-        <span class="market-title" style="color: var(--blue);">🧠 Moteur d'Ensemble (8 Modèles)</span>
-        <span class="market-total" id="ensembleFiabilite" style="background:var(--blue); color:#fff;">...</span>
-    </div>
-    
-    <div style="text-align: center; margin-bottom: 15px;">
-        <div style="font-size: 32px; font-weight: 800; color: var(--accent);" id="ensembleProbaFinale">--%</div>
-        <div style="font-size: 12px; color: var(--text-muted);">Probabilité de +9.5 Corners (Ensemble)</div>
-    </div>
-
-    <div id="shadowMarketResult" style="margin-bottom: 15px; font-size: 13px; text-align: center; font-weight: bold;"></div>
-
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
-        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Poisson: <span id="m_poisson" style="float:right; font-weight:bold;"></span></div>
-        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Binom. Nég: <span id="m_nbinom" style="float:right; font-weight:bold;"></span></div>
-        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Monte Carlo: <span id="m_mc" style="float:right; font-weight:bold;"></span></div>
-        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Dixon-Coles: <span id="m_dc" style="float:right; font-weight:bold;"></span></div>
-        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Bayésien: <span id="m_bayes" style="float:right; font-weight:bold;"></span></div>
-        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid var(--blue);">Hawkes: <span id="m_hawkes" style="float:right; font-weight:bold; color:var(--blue);"></span></div>
-        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid #a855f7;">Kalman: <span id="m_kalman" style="float:right; font-weight:bold; color:#a855f7;"></span></div>
-        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid #ec4899;">Markov: <span id="m_markov" style="float:right; font-weight:bold; color:#ec4899;"></span></div>
-    </div>
-</div>
-    
-    <div style="text-align: center; margin-bottom: 15px;">
-        <div style="font-size: 32px; font-weight: 800; color: var(--accent);" id="ensembleProbaFinale">--%</div>
-        <div style="font-size: 12px; color: var(--text-muted);">Probabilité de +9.5 Corners (Ensemble)</div>
-    </div>
-
-    <div id="shadowMarketResult" style="margin-bottom: 15px; font-size: 13px; text-align: center; font-weight: bold;"></div>
-
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
-        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Poisson: <span id="m_poisson" style="float:right; font-weight:bold;"></span></div>
-        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Binom. Nég: <span id="m_nbinom" style="float:right; font-weight:bold;"></span></div>
-        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Monte Carlo: <span id="m_mc" style="float:right; font-weight:bold;"></span></div>
-        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Dixon-Coles: <span id="m_dc" style="float:right; font-weight:bold;"></span></div>
-        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Bayésien: <span id="m_bayes" style="float:right; font-weight:bold;"></span></div>
-        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid var(--blue);">Hawkes: <span id="m_hawkes" style="float:right; font-weight:bold; color:var(--blue);"></span></div>
-    </div>
-</div>
                 <div id="contextInfo" style="font-size: 12px; color: var(--text-muted); text-align: center; margin-bottom: 15px; background: var(--bg-card); padding: 10px; border-radius: 8px; display: none;"></div>
-                
-                <div class="market-card">
+
+                <!-- MOTEUR D'ENSEMBLE -->
+                <div class="market-card" style="border: 2px solid var(--blue); background: linear-gradient(135deg, #1e293b, #0f172a);">
                     <div class="market-header">
-                        <span class="market-title">📐 Corners</span>
-                        <span class="market-total" id="totalCorners"></span>
+                        <span class="market-title" style="color: var(--blue);">🧠 Moteur d'Ensemble (8 Modèles)</span>
+                        <span class="market-total" id="ensembleFiabilite" style="background:var(--blue); color:#fff;">...</span>
                     </div>
-                    <div id="cornersProbs"></div>
-                </div>
-                
-                <div class="market-card">
-                    <div class="market-header">
-                        <span class="market-title">🟨 Cartons</span>
-                        <span class="market-total" id="totalCartons"></span>
+                    <div style="text-align: center; margin-bottom: 15px;">
+                        <div style="font-size: 32px; font-weight: 800; color: var(--accent);" id="ensembleProbaFinale">--%</div>
+                        <div style="font-size: 12px; color: var(--text-muted);">Probabilité de +9.5 Corners (Ensemble)</div>
                     </div>
-                    <div id="cartonsProbs"></div>
-                </div>
+                    <div id="shadowMarketResult" style="margin-bottom: 15px; font-size: 13px; text-align: center; font-weight: bold;"></div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
+                        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Poisson: <span id="m_poisson" style="float:right; font-weight:bold;"></span></div>
+                        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Binom. Nég: <span id="m_nbinom" style="float:right; font-weight:bold;"></span></div>
+                        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Monte Carlo: <span id="m_mc" style="float:right; font-weight:bold;"></span></div>
+                        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Dixon-Coles: <span id="m_dc" style="float:right; font-weight:bold;"></span></div>
+                        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Bayésien: <span id="m_bayes" style="float:right; font-weight:bold;"></span></div>
+                        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid var(--blue);">Hawkes: <span id="m_hawkes" style="float:right; font-weight:bold; color:var(--blue);"></span></div>
+                        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid #a855f7;">Kalman: <span id="m_kalman" style="float:right; font-weight:bold; color:#a855f7;"></span></div>
+                        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid #ec4899;">Markov: <span id="m_markov" style="float:right; font-weight:bold; color:#ec4899;"></span></div>
+                    </div>
+                    </div>
 
-                <div class="market-card" style="border: 1px solid var(--accent);">
-                    <div class="market-header">
-                        <span class="market-title">⏱️ Score Exact Mi-Temps</span>
-                        <span class="market-total" style="background:var(--accent); color:#000;">Top 3</span>
-                    </div>
-                    <div id="htScoresProbs" style="display:flex; justify-content:space-between; text-align:center;"></div>
+                            <!-- CARTE CORNERS -->
+            <div class="market-card">
+                <div class="market-header">
+                    <span class="market-title">📐 Corners</span>
+                    <span class="market-total" id="totalCorners"></span>
                 </div>
-
-                <button class="btn-save" onclick="sauvegarderPrediction()">💾 Sauvegarder cette analyse</button>
+                <div id="cornersProbs"></div>
             </div>
-        </div>
-        <div class="market-card" style="border: 1px solid var(--blue);">
-    <div class="market-header">
-        <span class="market-title">🏁 Score Exact Final</span>
-        <span class="market-total" style="background:var(--blue); color:#fff;">Top 3</span>
-    </div>
-    <div id="ftScoresProbs" style="display:flex; justify-content:space-between; text-align:center;"></div>
-        </div>
 
-        <div id="page-historique" class="page">
-            <div class="card" id="statsCalibration" style="background: linear-gradient(135deg, #1e293b, #0f172a); display: none;">
-    <h3 style="font-size: 14px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 15px;">📊 Bilan de performance</h3>
-    <div style="display: flex; justify-content: space-between; text-align: center;">
-        <div>
-            <div style="font-size: 24px; font-weight: 800; color: var(--accent);" id="statTotal">0</div>
-            <div style="font-size: 11px; color: var(--text-muted);">Analyses</div>
-        </div>
-        <div>
-            <div style="font-size: 24px; font-weight: 800; color: var(--accent);" id="statReussite">0%</div>
-            <div style="font-size: 11px; color: var(--text-muted);">Réussite</div>
-        </div>
-        <div>
-            <div style="font-size: 24px; font-weight: 800; color: var(--blue);" id="statProba">0%</div>
-            <div style="font-size: 11px; color: var(--text-muted);">Proba. Moy.</div>
-        </div>
-    </div>
-    <div id="statDiagnostic" style="margin-top: 15px; text-align: center; font-size: 12px; font-weight: 600; padding: 8px; border-radius: 6px; background: rgba(255,255,255,0.05);"></div>
-            </div>
-            <div id="listeHistorique"></div>
-        </div>
-
-        <div id="page-parametres" class="page">
-            <div class="card">
-                <h3 style="margin-bottom: 15px; color: var(--accent);">Contexte du match</h3>
-                <div class="input-group">
-                    <div>
-                        <label>Météo</label>
-                        <select id="meteo">
-                            <option value="Sec">☀️ Sec</option>
-                            <option value="Pluie">🌧️ Pluie</option>
-                            <option value="Vent fort">💨 Vent fort</option>
-                            <option value="Neige">❄️ Neige</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label>Style de l'adversaire</label>
-                        <select id="styleAdv">
-                            <option value="Équilibré">⚖️ Équilibré</option>
-                            <option value="Défensif">🛡️ Défensif</option>
-                            <option value="Offensif">⚔️ Offensif</option>
-                            <option value="Contre-attaque">⚡ Contre-attaque</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label>Nom de l'arbitre</label>
-                        <input type="text" id="arbitre" placeholder="Ex: M. Oliver">
-                    </div>
-                    <div>
-                        <label>Profil de l'arbitre</label>
-                        <select id="arbitreProfil">
-                            <option value="Normal">Normal</option>
-                            <option value="Sévère">🟨 Sévère (beaucoup de cartons)</option>
-                            <option value="Laxiste">🟩 Laxiste (laisse jouer)</option>
-                        </select>
-                    </div>
+            <!-- CARTE CARTONS -->
+            <div class="market-card">
+                <div class="market-header">
+                    <span class="market-title">🟨 Cartons</span>
+                    <span class="market-total" id="totalCartons"></span>
                 </div>
+                <div id="cartonsProbs"></div>
             </div>
+
+            <!-- CARTE SCORE MI-TEMPS -->
+            <div class="market-card" style="border: 1px solid var(--accent);">
+                <div class="market-header">
+                    <span class="market-title">⏱️ Score Exact Mi-Temps</span>
+                    <span class="market-total" style="background:var(--accent); color:#000;">Top 3</span>
+                </div>
+                <div id="htScoresProbs" style="display:flex; justify-content:space-between; text-align:center;"></div>
+            </div>
+
+            <!-- CARTE SCORE FINAL -->
+            <div class="market-card" style="border: 1px solid var(--blue);">
+                <div class="market-header">
+                    <span class="market-title">🏁 Score Exact Final</span>
+                    <span class="market-total" style="background:var(--blue); color:#fff;">Top 3</span>
+                </div>
+                <div id="ftScoresProbs" style="display:flex; justify-content:space-between; text-align:center;"></div>
+            </div>
+
+            <button class="btn-save" onclick="sauvegarderPrediction()">💾 Sauvegarder cette analyse</button>
         </div>
     </div>
 
-    <nav class="bottom-nav">
-        <div class="nav-item active" onclick="switchTab('analyse')" id="nav-analyse">
-            <span class="icon">🧠</span> Analyse
+    <div id="page-historique" class="page">
+        <div class="card" id="statsCalibration" style="background: linear-gradient(135deg, #1e293b, #0f172a); display: none;">
+            <h3 style="font-size: 14px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 15px;">📊 Bilan de performance</h3>
+            <div style="display: flex; justify-content: space-between; text-align: center;">
+                <div><div style="font-size: 24px; font-weight: 800; color: var(--accent);" id="statTotal">0</div><div style="font-size: 11px; color: var(--text-muted);">Analyses</div></div>
+                <div><div style="font-size: 24px; font-weight: 800; color: var(--accent);" id="statReussite">0%</div><div style="font-size: 11px; color: var(--text-muted);">Réussite</div></div>
+                <div><div style="font-size: 24px; font-weight: 800; color: var(--blue);" id="statProba">0%</div><div style="font-size: 11px; color: var(--text-muted);">Proba. Moy.</div></div>
+            </div>
+            <div id="statDiagnostic" style="margin-top: 15px; text-align: center; font-size: 12px; font-weight: 600; padding: 8px; border-radius: 6px; background: rgba(255,255,255,0.05);"></div>
         </div>
-        <div class="nav-item" onclick="switchTab('historique')" id="nav-historique">
-            <span class="icon">📜</span> Historique
-        </div>
-        <div class="nav-item" onclick="switchTab('parametres')" id="nav-parametres">
-            <span class="icon">⚙️</span> Paramètres
-        </div>
-    </nav>
+        <div id="listeHistorique"></div>
+    </div>
 
-        <script>
-        let currentMatchId = null;
+    <div id="page-parametres" class="page">
+        <div class="card">
+            <h3 style="margin-bottom: 15px; color: var(--accent);">Contexte du match</h3>
+            <div class="input-group">
+                <div><label>Météo</label><select id="meteo"><option value="Sec">☀️ Sec</option><option value="Pluie">🌧️ Pluie</option><option value="Vent fort">💨 Vent fort</option><option value="Neige">❄️ Neige</option></select></div>
+                <div><label>Style de l'adversaire</label><select id="styleAdv"><option value="Équilibré">⚖️ Équilibré</option><option value="Défensif">🛡️ Défensif</option><option value="Offensif">⚔️ Offensif</option><option value="Contre-attaque">⚡ Contre-attaque</option></select></div>
+                <div><label>Nom de l'arbitre</label><input type="text" id="arbitre" placeholder="Ex: M. Oliver"></div>
+                <div><label>Profil de l'arbitre</label><select id="arbitreProfil"><option value="Normal">Normal</option><option value="Sévère">🟨 Sévère (beaucoup de cartons)</option><option value="Laxiste">🟩 Laxiste (laisse jouer)</option></select></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<nav class="bottom-nav">
+    <div class="nav-item active" onclick="switchTab('analyse')" id="nav-analyse"><span class="icon">🧠</span> Analyse</div>
+    <div class="nav-item" onclick="switchTab('historique')" id="nav-historique"><span class="icon">📜</span> Historique</div>
+    <div class="nav-item" onclick="switchTab('parametres')" id="nav-parametres"><span class="icon">⚙️</span> Paramètres</div>
+</nav>
+
+<script>
+
+            let currentMatchId = null;
         let currentDataC = null;
         let currentDataK = null;
-            // FONCTIONS DU SCANNER
-async function lancerScanner() {
-    const btn = document.getElementById('btnScan');
-    const resDiv = document.getElementById('scanResultats');
-    
-    btn.innerText = "⏳ Scan en cours (7 modèles)...";
-    btn.disabled = true;
-    resDiv.style.display = 'none';
-
-    try {
-        const response = await fetch('/scan-today');
-        const data = await response.json();
-
-        if (data.erreur) { alert(data.erreur); return; }
-        if (!data.top_3 || data.top_3.length === 0) {
-            resDiv.style.display = 'block';
-            resDiv.innerHTML = '<p style="color:var(--danger); text-align:center;">Aucune opportunité fiable trouvée aujourd\'hui.</p>';
-            return;
-        }
-
-        resDiv.style.display = 'block';
-        resDiv.innerHTML = '<h4 style="margin-bottom:10px; color:var(--accent);">Top 3 Opportunités :</h4>';
-        
-        data.top_3.forEach((opt, index) => {
-            let badgeColor = opt.fiabilite.includes('HAUTE') ? 'var(--accent)' : '#f59e0b';
-            resDiv.innerHTML += `
-                <div style="background: var(--bg-dark); padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid ${badgeColor};">
-                    <div style="display:flex; justify-content:space-between;">
-                        <span style="font-weight:bold; font-size:14px;">${index + 1}. ${opt.match}</span>
-                        <span style="color:${badgeColor}; font-weight:bold;">${opt.probabilite}%</span>
-                    </div>
-                    <div style="font-size:11px; color:var(--text-muted); margin-top:5px; display:flex; justify-content:space-between;">
-                        <span>Marché: ${opt.marche}</span>
-                        <span style="color:${badgeColor};">Fiabilité: ${opt.fiabilite}</span>
-                    </div>
-                </div>
-            `;
-        });
-    } catch (e) {
-        alert("Erreur de connexion.");
-    } finally {
-        btn.innerText = "🚀 Scanner le Top 3";
-        btn.disabled = false;
-    }
-}
-
-// FONCTIONS DU MODE LIVE
-function toggleLiveForm() {
-    const form = document.getElementById('liveForm');
-    form.style.display = (form.style.display === 'none') ? 'block' : 'none';
-}
-
-async function analyserLive() {
-    const matchId = document.getElementById('matchId').value;
-    if(!matchId) { alert("Veuillez sélectionner un match en haut."); return; }
-
-    const minute = document.getElementById('liveMinute').value;
-    const ligne = document.getElementById('liveLigne').value;
-    const cDom = document.getElementById('liveCornersDom').value;
-    const cExt = document.getElementById('liveCornersExt').value;
-    const sDom = document.getElementById('liveScoreDom').value;
-    const sExt = document.getElementById('liveScoreExt').value;
-    const cote = document.getElementById('liveCote').value;
-
-    try {
-        const url = `/predict-live/${matchId}?minute=${minute}&corners_dom=${cDom}&corners_ext=${cExt}&score_dom=${sDom}&score_ext=${sExt}&ligne=${ligne}&cote=${cote}`;
-        const response = await fetch(url);
-        const data = await response.json();
-
-        if (data.erreur) { alert(data.erreur); return; }
-
-        document.getElementById('resultats').style.display = 'none';
-        alert(`🔴 RÉSULTAT LIVE :\n\nProbabilité : ${data.analyse_live.probabilite_live}%\n${data.verdict_value}`);
-        
-    } catch (e) {
-        alert("Erreur de connexion.");
-    }
-            }
 
         function switchTab(tabName) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            
             document.getElementById(`page-${tabName}`).classList.add('active');
             document.getElementById(`nav-${tabName}`).classList.add('active');
-
             if(tabName === 'historique') chargerHistorique();
+        }
+
+        async function lancerScanner() {
+            const btn = document.getElementById('btnScan');
+            const resDiv = document.getElementById('scanResultats');
+            btn.innerText = "⏳ Scan en cours (8 modèles)..."; btn.disabled = true; resDiv.style.display = 'none';
+            try {
+                const response = await fetch('/scan-today');
+                const data = await response.json();
+                if (data.erreur) { alert(data.erreur); return; }
+                if (!data.top_3 || data.top_3.length === 0) {
+                    resDiv.style.display = 'block';
+                    resDiv.innerHTML = '<p style="color:var(--danger); text-align:center;">Aucune opportunité fiable trouvée aujourd\'hui.</p>';
+                    return;
+                }
+                resDiv.style.display = 'block';
+                resDiv.innerHTML = '<h4 style="margin-bottom:10px; color:var(--accent);">Top 3 Opportunités :</h4>';
+                data.top_3.forEach((opt, index) => {
+                    let badgeColor = opt.fiabilite.includes('HAUTE') ? 'var(--accent)' : '#f59e0b';
+                    resDiv.innerHTML += `
+                        <div style="background: var(--bg-dark); padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid ${badgeColor};">
+                            <div style="display:flex; justify-content:space-between;"><span style="font-weight:bold; font-size:14px;">${index + 1}. ${opt.match}</span><span style="color:${badgeColor}; font-weight:bold;">${opt.probabilite}%</span></div>
+                            <div style="font-size:11px; color:var(--text-muted); margin-top:5px; display:flex; justify-content:space-between;"><span>Marché: ${opt.marche}</span><span style="color:${badgeColor};">Fiabilité: ${opt.fiabilite}</span></div>
+                        </div>
+                    `;
+                });
+            } catch (e) { alert("Erreur de connexion."); } finally { btn.innerText = "🚀 Scanner le Top 3"; btn.disabled = false; }
+        }
+
+        function toggleLiveForm() {
+            const form = document.getElementById('liveForm');
+            form.style.display = (form.style.display === 'none') ? 'block' : 'none';
+        }
+
+        async function analyserLive() {
+            const matchId = document.getElementById('matchId').value;
+            if(!matchId) { alert("Veuillez sélectionner un match en haut."); return; }
+            const minute = document.getElementById('liveMinute').value;
+            const ligne = document.getElementById('liveLigne').value;
+            const cDom = document.getElementById('liveCornersDom').value;
+            const cExt = document.getElementById('liveCornersExt').value;
+            const sDom = document.getElementById('liveScoreDom').value;
+            const sExt = document.getElementById('liveScoreExt').value;
+            const cote = document.getElementById('liveCote').value;
+            try {
+                const url = `/predict-live/${matchId}?minute=${minute}&corners_dom=${cDom}&corners_ext=${cExt}&score_dom=${sDom}&score_ext=${sExt}&ligne=${ligne}&cote=${cote}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data.erreur) { alert(data.erreur); return; }
+                document.getElementById('resultats').style.display = 'none';
+                alert(`🔴 RÉSULTAT LIVE :\n\nProbabilité : ${data.analyse_live.probabilite_live}%\n${data.verdict_value}`);
+            } catch (e) { alert("Erreur de connexion."); }
         }
 
         async function chargerMatchs() {
@@ -370,12 +286,7 @@ async function analyserLive() {
                 const matchs = await response.json();
                 const select = document.getElementById('matchId');
                 select.innerHTML = '<option value="">-- Choisir un match --</option>';
-                
-                if(matchs.erreur || !Array.isArray(matchs)) {
-                    select.innerHTML = '<option value="">Erreur de chargement</option>';
-                    return;
-                }
-                
+                if(matchs.erreur || !Array.isArray(matchs)) { select.innerHTML = '<option value="">Erreur de chargement</option>'; return; }
                 matchs.forEach(m => {
                     let option = document.createElement('option');
                     option.value = m.id;
@@ -389,25 +300,13 @@ async function analyserLive() {
 
         async function actualiserMatchs() {
             const btn = document.getElementById('btnSync');
-            btn.innerText = "⏳ Recherche en cours...";
-            btn.disabled = true;
-
+            btn.innerText = "⏳ Recherche en cours..."; btn.disabled = true;
             try {
                 const response = await fetch('/sync-today');
                 const result = await response.json();
-                
-                if(result.erreur) {
-                    alert("Erreur : " + result.erreur);
-                } else {
-                    alert("✅ " + result.message);
-                    await chargerMatchs();
-                }
-            } catch (e) {
-                alert("Erreur de connexion.");
-            } finally {
-                btn.innerText = "🔄 Actualiser les matchs du jour";
-                btn.disabled = false;
-            }
+                if(result.erreur) { alert("Erreur : " + result.erreur); }
+                else { alert("✅ " + result.message); await chargerMatchs(); }
+            } catch (e) { alert("Erreur de connexion."); } finally { btn.innerText = "🔄 Actualiser les matchs du jour"; btn.disabled = false; }
         }
 
         window.onload = chargerMatchs;
@@ -415,116 +314,77 @@ async function analyserLive() {
         async function analyserMatch() {
             const matchId = document.getElementById('matchId').value;
             if(!matchId) { alert("Veuillez sélectionner un match."); return; }
-
             document.getElementById('resultats').style.display = 'none';
-
             try {
-                const resC = await fetch(`/predict-corners/${matchId}`);
-                const resFT = await fetch(`/predict-ft-score/${matchId}`);
-                const dataFT = await resFT.json();
+                const meteo = document.getElementById('meteo').value;
+                const arbitreProfil = document.getElementById('arbitreProfil').value;
+                
+                const resC = await fetch(`/predict-corners/${matchId}?meteo=${meteo}`);
                 const dataC = await resC.json();
-                const resK = await fetch(`/predict-cards/${matchId}`);
+                const resK = await fetch(`/predict-cards/${matchId}?arbitre_profil=${arbitreProfil}`);
                 const dataK = await resK.json();
-                // Appel du Moteur d'Ensemble (avec cote 1.85 par défaut pour le test)
-                const resEnsemble = await fetch(`/predict-ensemble/${matchId}?cote=1.85`);
-                const dataEnsemble = await resEnsemble.json();
                 const resHT = await fetch(`/predict-ht-score/${matchId}`);
                 const dataHT = await resHT.json();
+                const resFT = await fetch(`/predict-ft-score/${matchId}`);
+                const dataFT = await resFT.json();
+                const resEnsemble = await fetch(`/predict-ensemble/${matchId}?meteo=${meteo}&cote=1.85`);
+                const dataEnsemble = await resEnsemble.json();
 
                 if (dataC.erreur) { alert("❌ Erreur Corners : " + dataC.erreur); return; }
-if (dataK.erreur) { alert("❌ Erreur Cartons : " + dataK.erreur); return; }
-if (dataHT.erreur) { alert("❌ Erreur Mi-Temps : " + dataHT.erreur); return; }
-if (dataEnsemble.erreur) { alert("❌ Erreur Ensemble : " + dataEnsemble.erreur); return; }
+                if (dataK.erreur) { alert("❌ Erreur Cartons : " + dataK.erreur); return; }
+                if (dataHT.erreur) { alert("❌ Erreur Mi-Temps : " + dataHT.erreur); return; }
+                if (dataFT.erreur) { alert("❌ Erreur Final : " + dataFT.erreur); return; }
+                if (dataEnsemble.erreur) { alert("❌ Erreur Ensemble : " + dataEnsemble.erreur); return; }
 
-                currentMatchId = matchId;
-                currentDataC = dataC;
-                currentDataK = dataK;
+                currentMatchId = matchId; currentDataC = dataC; currentDataK = dataK;
 
                 const select = document.getElementById('matchId');
                 const selectedOption = select.options[select.selectedIndex];
                 const logoDom = selectedOption.getAttribute('data-logo-dom');
                 const logoExt = selectedOption.getAttribute('data-logo-ext');
-
-                let titleHtml = '';
-                if (logoDom && logoExt) {
-                    titleHtml = `<img src="${logoDom}"> <span>${dataC.match}</span> <img src="${logoExt}">`;
-                } else {
-                    titleHtml = `⚽ <span>${dataC.match}</span>`;
-                }
+                let titleHtml = (logoDom && logoExt) ? `<img src="${logoDom}"> <span>${dataC.match}</span> <img src="${logoExt}">` : `⚽ <span>${dataC.match}</span>`;
                 document.getElementById('matchTitle').innerHTML = titleHtml;
 
-                document.getElementById('totalCorners').innerText = `Moy: ${dataC.analyse_corners.total_attendu}`;
-                // Affichage du contexte
-const ctxDiv = document.getElementById('contextInfo');
-if (dataC.contexte) {
-    ctxDiv.style.display = 'block';
-    ctxDiv.innerHTML = `📊 <b>Force des équipes :</b> Moyenne Championnat: ${dataC.contexte.moyenne_championnat} | Attaque Dom: ${dataC.contexte.force_attaque_dom} | Défense Ext: ${dataC.contexte.force_defense_ext}`;
-            }
-                document.getElementById('totalCartons').innerText = `Moy: ${dataK.analyse_cartons.total_attendu}`;
+                const ctxDiv = document.getElementById('contextInfo');
+                if (dataC.contexte) { ctxDiv.style.display = 'block'; ctxDiv.innerHTML = `📊 <b>Force des équipes :</b> Moyenne Championnat: ${dataC.contexte.moyenne_championnat} | Attaque Dom: ${dataC.contexte.force_attaque_dom} | Défense Ext: ${dataC.contexte.force_defense_ext}`; }
 
+                if (dataEnsemble.ensemble_final) {
+                    document.getElementById('ensembleProbaFinale').innerText = dataEnsemble.ensemble_final + '%';
+                    const fiabBadge = document.getElementById('ensembleFiabilite');
+                    fiabBadge.innerText = dataEnsemble.fiabilite;
+                    if(dataEnsemble.fiabilite.includes('HAUTE')) fiabBadge.style.background = 'var(--accent)';
+                    if(dataEnsemble.fiabilite.includes('MOYENNE')) fiabBadge.style.background = '#f59e0b';
+                    if(dataEnsemble.fiabilite.includes('FAIBLE')) fiabBadge.style.background = 'var(--danger)';
+
+                    document.getElementById('m_poisson').innerText = dataEnsemble.probabilites_ligne_9_5.poisson + '%';
+                    document.getElementById('m_nbinom').innerText = dataEnsemble.probabilites_ligne_9_5.binomiale_negative + '%';
+                    document.getElementById('m_mc').innerText = dataEnsemble.probabilites_ligne_9_5.monte_carlo + '%';
+                    document.getElementById('m_dc').innerText = dataEnsemble.probabilites_ligne_9_5.dixon_coles + '%';
+                    document.getElementById('m_bayes').innerText = dataEnsemble.probabilites_ligne_9_5.bayesien + '%';
+                    document.getElementById('m_hawkes').innerText = dataEnsemble.probabilites_ligne_9_5.hawkes + '%';
+                    document.getElementById('m_kalman').innerText = dataEnsemble.probabilites_ligne_9_5.kalman + '%';
+                    document.getElementById('m_markov').innerText = dataEnsemble.probabilites_ligne_9_5.markov + '%';
+
+                    const shadowDiv = document.getElementById('shadowMarketResult');
+                    if (dataEnsemble.shadow_market && !dataEnsemble.shadow_market.erreur) {
+                        shadowDiv.style.display = 'block';
+                        let edge = dataEnsemble.shadow_market.edge;
+                        shadowDiv.innerHTML = `Cote: ${dataEnsemble.shadow_market.cote_saisie} | Edge: ${edge}% <br> <span style="font-size:14px;">${dataEnsemble.shadow_market.statut_shadow_market}</span>`;
+                        shadowDiv.style.color = edge > 5 ? 'var(--accent)' : (edge > 0 ? '#f59e0b' : 'var(--danger)');
+                    } else { shadowDiv.style.display = 'none'; }
+                }
+
+                document.getElementById('totalCorners').innerText = `Moy: ${dataC.analyse_corners.total_attendu}`;
+                document.getElementById('totalCartons').innerText = `Moy: ${dataK.analyse_cartons.total_attendu}`;
                 document.getElementById('cornersProbs').innerHTML = genererBarres(dataC.analyse_corners, ['probabilite_plus_de_8_5', 'probabilite_plus_de_9_5'], ['+8.5 Corners', '+9.5 Corners']);
                 document.getElementById('cartonsProbs').innerHTML = genererBarres(dataK.analyse_cartons, ['probabilite_plus_de_3_5', 'probabilite_plus_de_4_5'], ['+3.5 Cartons', '+4.5 Cartons']);
 
-                let htHtml = '';
-                dataHT.top_scores_mi_temps.forEach((s, index) => {
-                    let color = index === 0 ? 'var(--accent)' : 'var(--text-main)';
-                    let border = index === 0 ? 'var(--accent)' : 'var(--border)';
-                    htHtml += `
-                        <div style="background:var(--bg-dark); padding:10px; border-radius:8px; width:30%; border: 1px solid ${border};">
-                            <div style="font-size:20px; font-weight:800; color:${color};">${s.score}</div>
-                            <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">${s.probabilite}%</div>
-                        </div>
-                    `;
-                });
+                let htHtml = ''; dataHT.top_scores_mi_temps.forEach((s, i) => { htHtml += `<div style="background:var(--bg-dark); padding:10px; border-radius:8px; width:30%; border: 1px solid ${i===0?'var(--accent)':'var(--border)'};"><div style="font-size:20px; font-weight:800; color:${i===0?'var(--accent)':'var(--text-main)'};">${s.score}</div><div style="font-size:12px; color:var(--text-muted); margin-top:4px;">${s.probabilite}%</div></div>`; });
                 document.getElementById('htScoresProbs').innerHTML = htHtml;
-                let ftHtml = '';
-    dataFT.top_scores_finaux.forEach((s, index) => {
-    let color = index === 0 ? 'var(--blue)' : 'var(--text-main)';
-    let border = index === 0 ? 'var(--blue)' : 'var(--border)';
-    ftHtml += `
-        <div style="background:var(--bg-dark); padding:10px; border-radius:8px; width:30%; border: 1px solid ${border};">
-            <div style="font-size:20px; font-weight:800; color:${color};">${s.score}</div>
-            <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">${s.probabilite}%</div>
-        </div>
-    `;
-});
-document.getElementById('ftScoresProbs').innerHTML = ftHtml;
-// --- REMPLISSAGE DU MOTEUR D'ENSEMBLE ---
-if (dataEnsemble.ensemble_final) {
-    document.getElementById('ensembleProbaFinale').innerText = dataEnsemble.ensemble_final + '%';
-    document.getElementById('ensembleFiabilite').innerText = dataEnsemble.fiabilite;
-    
-    // Couleur de la fiabilité
-    if(dataEnsemble.fiabilite.includes('HAUTE')) document.getElementById('ensembleFiabilite').style.background = 'var(--accent)';
-    if(dataEnsemble.fiabilite.includes('MOYENNE')) document.getElementById('ensembleFiabilite').style.background = '#f59e0b';
-    if(dataEnsemble.fiabilite.includes('FAIBLE')) document.getElementById('ensembleFiabilite').style.background = 'var(--danger)';
 
-    // Remplissage des 6 modèles
-    document.getElementById('m_poisson').innerText = dataEnsemble.probabilites_ligne_9_5.poisson + '%';
-    document.getElementById('m_nbinom').innerText = dataEnsemble.probabilites_ligne_9_5.binomiale_negative + '%';
-    document.getElementById('m_mc').innerText = dataEnsemble.probabilites_ligne_9_5.monte_carlo + '%';
-    document.getElementById('m_dc').innerText = dataEnsemble.probabilites_ligne_9_5.dixon_coles + '%';
-    document.getElementById('m_bayes').innerText = dataEnsemble.probabilites_ligne_9_5.bayesien + '%';
-    document.getElementById('m_hawkes').innerText = dataEnsemble.probabilites_ligne_9_5.hawkes + '%';
-    document.getElementById('m_kalman').innerText = dataEnsemble.probabilites_ligne_9_5.kalman + '%';
-    document.getElementById('m_markov').innerText = dataEnsemble.probabilites_ligne_9_5.markov + '%';
+                let ftHtml = ''; dataFT.top_scores_finaux.forEach((s, i) => { ftHtml += `<div style="background:var(--bg-dark); padding:10px; border-radius:8px; width:30%; border: 1px solid ${i===0?'var(--blue)':'var(--border)'};"><div style="font-size:20px; font-weight:800; color:${i===0?'var(--blue)':'var(--text-main)'};">${s.score}</div><div style="font-size:12px; color:var(--text-muted); margin-top:4px;">${s.probabilite}%</div></div>`; });
+                document.getElementById('ftScoresProbs').innerHTML = ftHtml;
 
-    // Affichage du Shadow Market
-    const shadowDiv = document.getElementById('shadowMarketResult');
-    if (dataEnsemble.shadow_market && !dataEnsemble.shadow_market.erreur) {
-        shadowDiv.style.display = 'block';
-        let edge = dataEnsemble.shadow_market.edge;
-        let statut = dataEnsemble.shadow_market.statut_shadow_market;
-        
-        shadowDiv.innerHTML = `Cote: ${dataEnsemble.shadow_market.cote_saisie} | Edge: ${edge}% <br> <span style="font-size:14px;">${statut}</span>`;
-        
-        if (edge > 5) shadowDiv.style.color = 'var(--accent)';
-        else if (edge > 0) shadowDiv.style.color = '#f59e0b';
-        else shadowDiv.style.color = 'var(--danger)';
-    } else {
-        shadowDiv.style.display = 'none';
-    }
-            }
                 document.getElementById('resultats').style.display = 'block';
             } catch (e) { alert("Erreur de connexion."); }
         }
@@ -532,29 +392,8 @@ if (dataEnsemble.ensemble_final) {
         function genererBarres(data, cles, labels) {
             let html = '';
             cles.forEach((cle, index) => {
-                let proba = data[cle];
-                let couleurBarre = proba > 60 ? '#10b981' : (proba > 40 ? '#f59e0b' : '#ef4444');
-                let idInput = `cote_${cle}`;
-                
-                html += `
-                    <div class="prob-row">
-                        <div class="prob-labels">
-                            <span class="prob-label">${labels[index]}</span>
-                            <span class="prob-value" style="color: ${couleurBarre}">${proba}%</span>
-                        </div>
-                        <div class="bar-bg"><div class="bar-fill" style="width: ${proba}%; background-color: ${couleurBarre};"></div></div>
-                        
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
-                            <div>
-                                <span style="font-size: 12px; color: var(--text-muted);">Cote: </span>
-                                <input type="number" step="0.01" class="cote-input" id="${idInput}" placeholder="Ex: 1.85" oninput="calculerEV('${idInput}', ${proba})">
-                            </div>
-                            <div id="badge_${cle}">
-                                <span class="value-badge value-empty">En attente</span>
-                            </div>
-                        </div>
-                    </div>
-                `;
+                let proba = data[cle]; let couleur = proba > 60 ? '#10b981' : (proba > 40 ? '#f59e0b' : '#ef4444');
+                html += `<div class="prob-row"><div class="prob-labels"><span class="prob-label">${labels[index]}</span><span class="prob-value" style="color: ${couleur}">${proba}%</span></div><div class="bar-bg"><div class="bar-fill" style="width: ${proba}%; background-color: ${couleur};"></div></div><div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;"><div><span style="font-size: 12px; color: var(--text-muted);">Cote: </span><input type="number" step="0.01" class="cote-input" id="cote_${cle}" placeholder="Ex: 1.85" oninput="calculerEV('cote_${cle}', ${proba})"></div><div id="badge_${cle}"><span class="value-badge value-empty">En attente</span></div></div></div>`;
             });
             return html;
         }
@@ -562,145 +401,63 @@ if (dataEnsemble.ensemble_final) {
         function calculerEV(inputId, proba) {
             let cote = parseFloat(document.getElementById(inputId).value);
             let badgeDiv = document.getElementById(`badge_${inputId.replace('cote_', '')}`);
-            
-            if (!cote || cote < 1) {
-                badgeDiv.innerHTML = `<span class="value-badge value-empty">En attente</span>`;
-                return;
-            }
-
-            let probaDecimale = proba / 100;
-            let ev = (probaDecimale * cote) - 1;
-
-            if (ev > 0) {
-                badgeDiv.innerHTML = `<span class="value-badge value-yes">✅ VALUE (+${(ev*100).toFixed(1)}%)</span>`;
-            } else {
-                badgeDiv.innerHTML = `<span class="value-badge value-no">❌ No Value (${(ev*100).toFixed(1)}%)</span>`;
-            }
+            if (!cote || cote < 1) { badgeDiv.innerHTML = `<span class="value-badge value-empty">En attente</span>`; return; }
+            let ev = ((proba / 100) * cote) - 1;
+            badgeDiv.innerHTML = ev > 0 ? `<span class="value-badge value-yes">✅ VALUE (+${(ev*100).toFixed(1)}%)</span>` : `<span class="value-badge value-no">❌ No Value (${(ev*100).toFixed(1)}%)</span>`;
         }
 
         async function sauvegarderPrediction() {
             if(!currentMatchId) return;
-            const pCorners = currentDataC.analyse_corners.probabilite_plus_de_9_5;
-            const pCartons = currentDataK.analyse_cartons.probabilite_plus_de_4_5;
-            
-            const meteo = document.getElementById('meteo').value;
-            const styleAdv = document.getElementById('styleAdv').value;
-            const arbitre = document.getElementById('arbitre').value || "Non renseigné";
-            const arbitreProfil = document.getElementById('arbitreProfil').value;
-            
+            const pCorners = currentDataC.analyse_corners.probabilite_plus_de_9_5; const pCartons = currentDataK.analyse_cartons.probabilite_plus_de_4_5;
+            const meteo = document.getElementById('meteo').value; const styleAdv = document.getElementById('styleAdv').value;
+            const arbitre = document.getElementById('arbitre').value || "Non renseigné"; const arbitreProfil = document.getElementById('arbitreProfil').value;
             try {
                 const response = await fetch(`/sauvegarder-prediction/${currentMatchId}?p_corners=${pCorners}&p_cartons=${pCartons}&meteo=${meteo}&style_adv=${styleAdv}&arbitre=${arbitre}&arbitre_profil=${arbitreProfil}`, { method: 'POST' });
-                const result = await response.json();
-                alert(result.erreur ? "Erreur : " + result.erreur : "✅ " + result.message);
+                const result = await response.json(); alert(result.erreur ? "Erreur : " + result.erreur : "✅ " + result.message);
             } catch (e) { alert("Erreur de connexion."); }
         }
 
         async function chargerHistorique() {
-    const container = document.getElementById('listeHistorique');
-    container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Chargement...</p>';
-    
-    try {
-        const response = await fetch('/api/historique');
-        // Appel des statistiques de calibration
-const resStats = await fetch('/api/calibration');
-const stats = await resStats.json();
+            const container = document.getElementById('listeHistorique');
+            container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Chargement...</p>';
+            try {
+                const resStats = await fetch('/api/calibration');
+                const stats = await resStats.json();
+                if (!stats.erreur && stats.total_predictions_analysees > 0) {
+                    document.getElementById('statsCalibration').style.display = 'block';
+                    document.getElementById('statTotal').innerText = stats.total_predictions_analysees;
+                    document.getElementById('statReussite').innerText = stats.taux_reussite_reel + '%';
+                    document.getElementById('statProba').innerText = stats.probabilite_moyenne_annoncee + '%';
+                    const diag = document.getElementById('statDiagnostic'); diag.innerText = stats.diagnostic_calibration;
+                    diag.style.color = stats.diagnostic_calibration.includes('Bien') ? 'var(--accent)' : (stats.diagnostic_calibration.includes('confiant') ? 'var(--danger)' : 'var(--blue)');
+                }
 
-if (!stats.erreur && stats.total_predictions_analysees > 0) {
-    const statsDiv = document.getElementById('statsCalibration');
-    statsDiv.style.display = 'block';
-    
-    document.getElementById('statTotal').innerText = stats.total_predictions_analysees;
-    document.getElementById('statReussite').innerText = stats.taux_reussite_reel + '%';
-    document.getElementById('statProba').innerText = stats.probabilite_moyenne_annoncee + '%';
-    
-    const diagDiv = document.getElementById('statDiagnostic');
-    diagDiv.innerText = stats.diagnostic_calibration;
-    
-    // Couleur du diagnostic
-    if (stats.diagnostic_calibration.includes('Bien')) {
-        diagDiv.style.color = 'var(--accent)';
-    } else if (stats.diagnostic_calibration.includes('confiant')) {
-        diagDiv.style.color = 'var(--danger)';
-    } else {
-        diagDiv.style.color = 'var(--blue)';
-    }
-}
-        const historique = await response.json();
-        
-        if (historique.erreur) {
-            container.innerHTML = `<p style="color:red;">Erreur: ${historique.erreur}</p>`;
-            return;
-        }
-        
-        if (historique.length === 0) {
-            container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Aucune analyse sauvegardée.</p>';
-            return;
+                const response = await fetch('/api/historique');
+                const historique = await response.json();
+                if (historique.erreur) { container.innerHTML = `<p style="color:red;">Erreur: ${historique.erreur}</p>`; return; }
+                if (historique.length === 0) { container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Aucune analyse sauvegardée.</p>'; return; }
+                container.innerHTML = '';
+                historique.forEach(h => {
+                    let marcheLabel = h.marche === 'corners' ? '📐 Corners' : '🟨 Cartons';
+                    let actionHtml = '';
+                    if (h.statut === 'en_attente' || h.statut === null) {
+                        actionHtml = `<div style="margin-top: 10px; display: flex; gap: 10px; align-items: center;"><input type="number" step="1" id="res_${h.id}" placeholder="Résultat réel" style="padding: 8px; border-radius: 5px; border: 1px solid var(--border); background: var(--bg-dark); color: white; width: 100px; font-size: 14px;"><button onclick="validerResultat(${h.id})" style="padding: 8px; width: auto; font-size: 12px; background: var(--accent);">Valider</button></div>`;
+                    } else if (h.statut === 'gagne') { actionHtml = `<span style="color: var(--accent); font-weight: bold; font-size: 12px;">✅ GAGNÉ (Résultat: ${h.resultat_reel})</span>`;
+                    } else { actionHtml = `<span style="color: var(--danger); font-weight: bold; font-size: 12px;">❌ PERDU (Résultat: ${h.resultat_reel})</span>`; }
+                    container.innerHTML += `<div class="history-item" style="flex-direction: column; align-items: flex-start;"><div style="display: flex; justify-content: space-between; width: 100%;"><div class="history-info"><h4>${h.match}</h4><p>${marcheLabel} | Ligne: ${h.ligne} | ${h.date}</p></div><div class="history-proba"><span>${h.probabilite}%</span><small>Proba</small></div></div>${actionHtml}</div>`;
+                });
+            } catch (e) { container.innerHTML = '<p style="color:red;">Erreur de connexion.</p>'; }
         }
 
-        container.innerHTML = '';
-        historique.forEach(h => {
-            let marcheLabel = h.marche === 'corners' ? '📐 Corners' : '🟨 Cartons';
-            
-            // Gestion du statut et du bouton de saisie
-            let actionHtml = '';
-            if (h.statut === 'en_attente' || h.statut === null) {
-                actionHtml = `
-                    <div style="margin-top: 10px; display: flex; gap: 10px; align-items: center;">
-                        <input type="number" step="1" id="res_${h.id}" placeholder="Résultat réel" style="padding: 8px; border-radius: 5px; border: 1px solid var(--border); background: var(--bg-dark); color: white; width: 100px; font-size: 14px;">
-                        <button onclick="validerResultat(${h.id})" style="padding: 8px; width: auto; font-size: 12px; background: var(--accent);">Valider</button>
-                    </div>
-                `;
-            } else if (h.statut === 'gagne') {
-                actionHtml = `<span style="color: var(--accent); font-weight: bold; font-size: 12px;">✅ GAGNÉ (Résultat: ${h.resultat_reel})</span>`;
-            } else {
-                actionHtml = `<span style="color: var(--danger); font-weight: bold; font-size: 12px;">❌ PERDU (Résultat: ${h.resultat_reel})</span>`;
-            }
-
-            container.innerHTML += `
-                <div class="history-item" style="flex-direction: column; align-items: flex-start;">
-                    <div style="display: flex; justify-content: space-between; width: 100%;">
-                        <div class="history-info">
-                            <h4>${h.match}</h4>
-                            <p>${marcheLabel} | Ligne: ${h.ligne} | ${h.date}</p>
-                        </div>
-                        <div class="history-proba">
-                            <span>${h.probabilite}%</span>
-                            <small>Proba</small>
-                        </div>
-                    </div>
-                    ${actionHtml}
-                </div>
-            `;
-        });
-    } catch (e) { 
-        container.innerHTML = '<p style="color:red;">Erreur de connexion.</p>'; 
-    }
-}
-
-// NOUVELLE FONCTION : Valider le résultat
-async function validerResultat(predictionId) {
-    const input = document.getElementById(`res_${predictionId}`);
-    const valeur = parseFloat(input.value);
-    
-    if (isNaN(valeur)) {
-        alert("Veuillez entrer un nombre valide.");
-        return;
-    }
-
-    try {
-        const response = await fetch(`/ajouter-resultat/${predictionId}?resultat_reel=${valeur}`, { method: 'POST' });
-        const result = await response.json();
-        
-        if (result.erreur) {
-            alert("Erreur : " + result.erreur);
-        } else {
-            alert("✅ " + result.message);
-            await chargerHistorique(); // Recharge l'historique pour voir le résultat
+        async function validerResultat(predictionId) {
+            const input = document.getElementById(`res_${predictionId}`);
+            const valeur = parseFloat(input.value);
+            if (isNaN(valeur)) { alert("Veuillez entrer un nombre valide."); return; }
+            try {
+                const response = await fetch(`/ajouter-resultat/${predictionId}?resultat_reel=${valeur}`, { method: 'POST' });
+                const result = await response.json(); alert(result.erreur ? "Erreur : " + result.erreur : "✅ " + result.message); await chargerHistorique();
+            } catch (e) { alert("Erreur de connexion."); }
         }
-    } catch (e) { 
-        alert("Erreur de connexion."); 
-    }
-}
     </script>
 </body>
 </html>
