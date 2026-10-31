@@ -7,7 +7,7 @@ import numpy as np
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from app.db_models import Base, Competition, Match, MatchStat, Prediction
-from app.engine import calc_poisson, calc_binomiale_negative, calc_monte_carlo, calc_lambda_dixon_coles, calc_lambda_bayesien, calc_hawkes_impact, calc_shadow_market, calc_live_corners
+from app.engine import calc_poisson, calc_binomiale_negative, calc_monte_carlo, calc_lambda_dixon_coles, calc_lambda_bayesien, calc_hawkes_impact, calc_shadow_market, calc_live_corners, calc_kalman_filter
 from datetime import datetime
 from scipy.stats import poisson
 from datetime import datetime, timedelta
@@ -705,7 +705,7 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
                 nb_matchs_champ += 1
         moy_championnat = (total_corners_champ / nb_matchs_champ) if nb_matchs_champ > 0 else 10.0
 
-        # 2. Historique Domicile
+        # 2. Historiques
         stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.equipe_domicile == match.equipe_domicile).all()
         hist_dom = []
         total_corners_dom, nb_dom = 0, 0
@@ -715,7 +715,6 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
                 total_corners_dom += stat.corners_domicile
                 nb_dom += 1
         
-        # 3. Historique Extérieur
         stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.equipe_exterieur == match.equipe_exterieur).all()
         hist_ext = []
         total_corners_ext, nb_ext = 0, 0
@@ -725,7 +724,7 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
                 total_corners_ext += stat.corners_exterieur
                 nb_ext += 1
 
-        # 4. Calcul des Lambdas
+        # 3. Lambdas classiques
         lambda_dc_dom = calc_lambda_dixon_coles(hist_dom) if nb_dom > 0 else moy_championnat / 2
         lambda_dc_ext = calc_lambda_dixon_coles(hist_ext) if nb_ext > 0 else moy_championnat / 2
         lambda_dc_total = lambda_dc_dom + lambda_dc_ext
@@ -736,23 +735,25 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
 
         lambda_simple_total = ((total_corners_dom / nb_dom) if nb_dom > 0 else moy_championnat / 2) + ((total_corners_ext / nb_ext) if nb_ext > 0 else moy_championnat / 2)
 
-        # Impact Météo
         impact_meteo = 0.90 if meteo == "Pluie" else (0.85 if meteo == "Vent fort" else 1.0)
         lambda_simple_total *= impact_meteo
         lambda_dc_total *= impact_meteo
         lambda_bayes_total *= impact_meteo
 
-        # 5. CALCUL HAWKES
+        # 4. Hawkes
         liste_corners_dom = [h['corners'] for h in hist_dom]
         liste_corners_ext = [h['corners'] for h in hist_ext]
         impact_hawkes_dom = calc_hawkes_impact(liste_corners_dom)
         impact_hawkes_ext = calc_hawkes_impact(liste_corners_ext)
-        
-        lambda_hawkes_dom = ((total_corners_dom / nb_dom) * impact_hawkes_dom) if nb_dom > 0 else (moy_championnat / 2)
-        lambda_hawkes_ext = ((total_corners_ext / nb_ext) * impact_hawkes_ext) if nb_ext > 0 else (moy_championnat / 2)
-        lambda_hawkes_total = (lambda_hawkes_dom + lambda_hawkes_ext) * impact_meteo
+        lambda_hawkes_total = (((total_corners_dom / nb_dom) * impact_hawkes_dom) if nb_dom > 0 else (moy_championnat / 2)) + (((total_corners_ext / nb_ext) * impact_hawkes_ext) if nb_ext > 0 else (moy_championnat / 2))
+        lambda_hawkes_total *= impact_meteo
 
-        # 6. Calcul des probabilités (Ligne 9.5)
+        # --- 5. NOUVEAU : KALMAN ---
+        kalman_dom = calc_kalman_filter(liste_corners_dom) if nb_dom > 0 else moy_championnat / 2
+        kalman_ext = calc_kalman_filter(liste_corners_ext) if nb_ext > 0 else moy_championnat / 2
+        lambda_kalman_total = (kalman_dom + kalman_ext) * impact_meteo
+
+        # 6. Probabilités (Ligne 9.5)
         ligne = 9.5
         p_poisson = calc_poisson(lambda_simple_total, ligne)
         p_nbinom = calc_binomiale_negative(lambda_simple_total, ligne)
@@ -760,23 +761,19 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
         p_dc = calc_poisson(lambda_dc_total, ligne)
         p_bayes = calc_poisson(lambda_bayes_total, ligne)
         p_hawkes = calc_poisson(lambda_hawkes_total, ligne)
+        p_kalman = calc_poisson(lambda_kalman_total, ligne)
 
-        # 7. Ensemble et Fiabilité
-        liste_probas = [p_poisson, p_nbinom, p_mc, p_dc, p_bayes, p_hawkes]
+        # 7. Ensemble final avec 7 modèles (Poisson, NBinom, MC, DC, Bayes, Hawkes, Kalman)
+        liste_probas = [p_poisson, p_nbinom, p_mc, p_dc, p_bayes, p_hawkes, p_kalman]
         moyenne_ensemble = np.mean(liste_probas)
         ecart_type = np.std(liste_probas)
 
-        # NOUVEAU CALCUL DE LA FIABILITÉ
         modeles_proches = sum(1 for p in liste_probas if abs(p - moyenne_ensemble) <= 10)
         
-        if modeles_proches >= 6: 
-            fiabilite = "HAUTE ✅"
-        elif modeles_proches >= 4: 
-            fiabilite = "MOYENNE ⚠️"
-        else: 
-            fiabilite = "FAIBLE ❌ (Divergence)"
+        if modeles_proches >= 6: fiabilite = "HAUTE ✅"
+        elif modeles_proches >= 4: fiabilite = "MOYENNE ⚠️"
+        else: fiabilite = "FAIBLE ❌ (Divergence)"
 
-        # 8. SHADOW MARKET
         shadow_result = calc_shadow_market(moyenne_ensemble, cote)
 
         return {
@@ -785,7 +782,8 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
                 "simple": round(lambda_simple_total, 2),
                 "dixon_coles": round(lambda_dc_total, 2),
                 "bayesien": round(lambda_bayes_total, 2),
-                "hawkes": round(lambda_hawkes_total, 2)
+                "hawkes": round(lambda_hawkes_total, 2),
+                "kalman": round(lambda_kalman_total, 2)
             },
             "impact_hawkes": {
                 "dom": round(impact_hawkes_dom, 2),
@@ -797,10 +795,10 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
                 "monte_carlo": round(p_mc, 2),
                 "dixon_coles": round(p_dc, 2),
                 "bayesien": round(p_bayes, 2),
-                "hawkes": round(p_hawkes, 2)
+                "hawkes": round(p_hawkes, 2),
+                "kalman": round(p_kalman, 2)
             },
             "ensemble_final": round(moyenne_ensemble, 2),
-            "nb_modeles_proches": modeles_proches,
             "ecart_type": round(ecart_type, 2),
             "fiabilite": fiabilite,
             "shadow_market": shadow_result
@@ -808,7 +806,7 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
     except Exception as e:
         return {"erreur": str(e)}
     finally:
-        db.close() 
+        db.close()
 
 @app.get("/scan-today")
 async def scan_today():
