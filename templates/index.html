@@ -412,7 +412,10 @@ async function analyserLive() {
                 const resHT = await fetch(`/predict-ht-score/${matchId}`);
                 const dataHT = await resHT.json();
 
-                if(dataC.erreur || dataK.erreur || dataHT.erreur) { alert("Match introuvable ou données manquantes."); return; }
+                if (dataC.erreur) { alert("❌ Erreur Corners : " + dataC.erreur); return; }
+if (dataK.erreur) { alert("❌ Erreur Cartons : " + dataK.erreur); return; }
+if (dataHT.erreur) { alert("❌ Erreur Mi-Temps : " + dataHT.erreur); return; }
+if (dataEnsemble.erreur) { alert("❌ Erreur Ensemble : " + dataEnsemble.erreur); return; }
 
                 currentMatchId = matchId;
                 currentDataC = dataC;
