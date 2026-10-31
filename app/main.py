@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 import os
 import httpx
 import numpy as np
+from scipy.stats import poisson
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from app.db_models import Base, Competition, Match, MatchStat, Prediction
