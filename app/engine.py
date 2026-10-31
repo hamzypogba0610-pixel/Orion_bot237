@@ -189,3 +189,47 @@ def calc_kalman_filter(historique_corners):
         P = (1 - K) * P_pred
 
     return x
+
+def calc_markov_impact(historique_corners):
+    """
+    Calcule la probabilité de transition vers un état 'Tempête' (beaucoup de corners).
+    Utilise une version simplifiée de la Chaîne de Markov Cachée.
+    """
+    if len(historique_corners) < 4:
+        return 1.0 # Pas assez de données pour détecter une transition
+    
+    moyenne = np.mean(historique_corners)
+    
+    # Définition des états : 0 (Calme), 1 (Normal), 2 (Tempête)
+    etats = []
+    for c in historique_corners:
+        if c < moyenne * 0.7:
+            etats.append(0)
+        elif c > moyenne * 1.3:
+            etats.append(2)
+        else:
+            etats.append(1)
+            
+    # On regarde l'état actuel (le dernier match)
+    etat_actuel = etats[-1]
+    
+    # On calcule la probabilité de transition de l'état actuel vers l'état 2 (Tempête)
+    transitions_possibles = 0
+    transitions_vers_tempete = 0
+    
+    for i in range(len(etats) - 1):
+        if etats[i] == etat_actuel:
+            transitions_possibles += 1
+            if etats[i+1] == 2:
+                transitions_vers_tempete += 1
+                
+    if transitions_possibles == 0:
+        return 1.0
+        
+    proba_tempete = transitions_vers_tempete / transitions_possibles
+    
+    # On crée un multiplicateur basé sur cette probabilité
+    # Si proba_tempete > 0.5, on augmente les corners attendus
+    multiplicateur = 1.0 + (proba_tempete * 0.20) # Max +20% si 100% de chances de tempête
+    
+    return min(multiplicateur, 1.20)
