@@ -304,3 +304,53 @@ def apply_copula_tail_dependence(score_dom, score_ext, proba_base, lambda_total)
             multiplicateur = 1.15 # On booste la proba de ces scores de 15%
             
     return proba_base * multiplicateur
+
+# ==========================================
+# 5. LES COUCHES 4 ET 5 (Viterbi & EVT)
+# ==========================================
+
+def calc_viterbi_state(minute, score_dom, score_ext):
+    """
+    Couche 4 : Modèle d'état (Viterbi simplifié).
+    Détermine si le match est dans un état Prudent, Offensif ou Chaos.
+    Retourne un multiplicateur d'intensité.
+    """
+    ecart = abs(score_dom - score_ext)
+    total_buts = score_dom + score_ext
+    
+    # Règle de transition d'état
+    if minute < 30:
+        return 0.9 # Prudent, on s'observe
+    elif minute < 70:
+        if ecart == 0 and total_buts == 0:
+            return 1.1 # On commence à pousser
+        elif ecart <= 1:
+            return 1.2 # Match ouvert
+        else:
+            return 1.0 # Match plié, on gère
+    else: # Fin de match (70+)
+        if ecart == 0:
+            return 1.4 # Tout le monde attaque pour gagner
+        elif ecart == 1:
+            return 1.3 # L'équipe qui perd pousse
+        else:
+            return 1.1 # Match fini, mais quelques contres possibles
+
+def apply_evt(score_dom, score_ext, proba_base, lambda_total):
+    """
+    Couche 5 : Théorie des Valeurs Extrêmes (EVT).
+    Applique une distribution de Pareto pour rehausser les scores très larges.
+    """
+    total_buts = score_dom + score_ext
+    ecart = abs(score_dom - score_ext)
+    
+    multiplicateur = 1.0
+    
+    # Si le total de buts est extrême (5 buts ou plus)
+    if total_buts >= 5:
+        multiplicateur += 0.20 # +20%
+    # Si l'écart est extrême (4 buts ou plus)
+    elif ecart >= 4:
+        multiplicateur += 0.15 # +15%
+        
+    return proba_base * multiplicateur
