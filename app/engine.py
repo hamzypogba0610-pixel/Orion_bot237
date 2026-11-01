@@ -391,3 +391,52 @@ def calc_live_score_drift(proba_model, cote_bookmaker, marge_bookmaker=0.15):
         "edge": round(edge, 2),
         "statut_drift": statut
     }
+
+# ==========================================
+# 7. LIVE BETTING POUR LES CARTONS
+# ==========================================
+
+def calc_live_cards(moyenne_cartons_dom, moyenne_cartons_ext, minute_actuelle, cartons_actuels, score_dom, score_ext, arbitre_profil, ligne):
+    """
+    Calcule la probabilité de cartons en Live, en tenant compte de l'urgence et de l'arbitre.
+    """
+    temps_restant = max(0, 90 - minute_actuelle)
+    
+    # Intensité de base (Cartons par minute)
+    intensite_par_minute = (moyenne_cartons_dom + moyenne_cartons_ext) / 90
+    
+    # Facteur d'Enjeu (Urgence en fin de match)
+    facteur_enjeu = 1.0
+    ecart_buts = abs(score_dom - score_ext)
+    
+    if minute_actuelle > 60:
+        if ecart_buts == 0:
+            facteur_enjeu = 1.30  # Match nul serré, on retient, on fait des fautes
+        elif ecart_buts == 1:
+            facteur_enjeu = 1.40  # Une équipe perd, elle va au charbon
+        else:
+            facteur_enjeu = 1.10  # Match plié, moins de tension
+            
+    # Impact de l'arbitre
+    impact_arbitre = 1.0
+    if arbitre_profil == "Sévère": impact_arbitre = 1.20
+    elif arbitre_profil == "Laxiste": impact_arbitre = 0.85
+
+    # Lambda pour le temps restant
+    lambda_restant = temps_restant * intensite_par_minute * facteur_enjeu * impact_arbitre
+    
+    # Combien de cartons manque-t-il ?
+    cartons_manquants = max(0, ligne - cartons_actuels)
+    
+    # Probabilité avec Poisson
+    p_live = (1 - poisson.cdf(int(np.floor(cartons_manquants)), lambda_restant)) * 100
+    
+    return {
+        "temps_restant_min": temps_restant,
+        "intensite_par_minute": round(intensite_par_minute, 3),
+        "facteur_urgence": round(facteur_enjeu, 2),
+        "impact_arbitre": round(impact_arbitre, 2),
+        "lambda_restant": round(lambda_restant, 2),
+        "cartons_manquants": cartons_manquants,
+        "probabilite_live": round(p_live, 2)
+    }
