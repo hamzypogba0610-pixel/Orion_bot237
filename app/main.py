@@ -368,56 +368,43 @@ async def predict_ht_score(match_id_local: int):
         match = db.query(Match).filter(Match.id == match_id_local).first()
         if not match: return {"erreur": "Match introuvable."}
 
-        stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
-            (Match.equipe_domicile == match.equipe_domicile) | (Match.equipe_exterieur == match.equipe_domicile)
-        ).all()
-        buts_dom, nb_matchs_dom = 0, 0
+        # 1. Moyennes de buts
+        stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter((Match.equipe_domicile == match.equipe_domicile) | (Match.equipe_exterieur == match.equipe_domicile)).all()
+        buts_dom, nb_dom = 0, 0
         for stat, m in stats_dom:
-            if m.equipe_domicile == match.equipe_domicile and m.score_domicile is not None:
-                buts_dom += m.score_domicile
-                nb_matchs_dom += 1
-            elif m.equipe_exterieur == match.equipe_domicile and m.score_exterieur is not None:
-                buts_dom += m.score_exterieur
-                nb_matchs_dom += 1
-        moyenne_buts_dom = (buts_dom / nb_matchs_dom) if nb_matchs_dom > 0 else 1.5
+            if m.equipe_domicile == match.equipe_domicile and m.score_domicile is not None: buts_dom += m.score_domicile; nb_dom += 1
+            elif m.equipe_exterieur == match.equipe_domicile and m.score_exterieur is not None: buts_dom += m.score_exterieur; nb_dom += 1
+        moy_buts_dom = (buts_dom / nb_dom) if nb_dom > 0 else 1.5
 
-        stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
-            (Match.equipe_domicile == match.equipe_exterieur) | (Match.equipe_exterieur == match.equipe_exterieur)
-        ).all()
-        buts_ext, nb_matchs_ext = 0, 0
+        stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter((Match.equipe_domicile == match.equipe_exterieur) | (Match.equipe_exterieur == match.equipe_exterieur)).all()
+        buts_ext, nb_ext = 0, 0
         for stat, m in stats_ext:
-            if m.equipe_domicile == match.equipe_exterieur and m.score_domicile is not None:
-                buts_ext += m.score_domicile
-                nb_matchs_ext += 1
-            elif m.equipe_exterieur == match.equipe_exterieur and m.score_exterieur is not None:
-                buts_ext += m.score_exterieur
-                nb_matchs_ext += 1
-        moyenne_buts_ext = (buts_ext / nb_matchs_ext) if nb_matchs_ext > 0 else 1.2
+            if m.equipe_domicile == match.equipe_exterieur and m.score_domicile is not None: buts_ext += m.score_domicile; nb_ext += 1
+            elif m.equipe_exterieur == match.equipe_exterieur and m.score_exterieur is not None: buts_ext += m.score_exterieur; nb_ext += 1
+        moy_buts_ext = (buts_ext / nb_ext) if nb_ext > 0 else 1.2
 
-        lambda_dom_ht = moyenne_buts_dom * 0.45
-        lambda_ext_ht = moyenne_buts_ext * 0.45
+        # 2. Application des Couches
+        facteur_temps = calc_time_intensity(minute=45, lambda_total_match=(moy_buts_dom + moy_buts_ext))
+        lambda_dom_ajuste = (moy_buts_dom / 2) * facteur_temps
+        lambda_ext_ajuste = (moy_buts_ext / 2) * facteur_temps
 
-        scores_possibles = []
-        for i in range(4):
-            for j in range(4):
-                p_dom = poisson.pmf(i, lambda_dom_ht)
-                p_ext = poisson.pmf(j, lambda_ext_ht)
-                proba = p_dom * p_ext
-                scores_possibles.append({"score": f"{i}-{j}", "proba": proba})
-
-        scores_possibles.sort(key=lambda x: x["proba"], reverse=True)
-        top_3 = scores_possibles[:3]
+        matrice = calc_bivariate_poisson_matrix(lambda_dom_ajuste, lambda_ext_ajuste, max_buts=3)
+        
+        scores_ajustes = []
+        for s in matrice:
+            i, j = map(int, s["score"].split("-"))
+            proba_copule = apply_copula_tail_dependence(i, j, s["proba"], lambda_dom_ajuste + lambda_ext_ajuste)
+            scores_ajustes.append({"score": s["score"], "proba": proba_copule})
+            
+        scores_ajustes.sort(key=lambda x: x["proba"], reverse=True)
+        top_3 = scores_ajustes[:3]
 
         return {
             "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
-            "top_scores_mi_temps": [
-                {"score": s["score"], "probabilite": round(s["proba"] * 100, 2)} for s in top_3
-            ]
+            "top_scores_mi_temps": [{"score": s["score"], "probabilite": round(s["proba"] * 100, 2)} for s in top_3]
         }
-    except Exception as e:
-        return {"erreur": str(e)}
-    finally:
-        db.close()
+    except Exception as e: return {"erreur": str(e)}
+    finally: db.close()
 
 @app.get("/import-csv/")
 async def import_csv(url: str):
