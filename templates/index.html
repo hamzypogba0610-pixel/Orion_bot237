@@ -97,6 +97,39 @@
                     <button onclick="toggleLiveForm()" id="btnToggleLive" style="background-color: transparent; border: 1px solid var(--danger); color: var(--danger); margin-top: 10px;">🔴 Mode Live Betting</button>
                     
                     <div id="liveForm" style="display: none; background: var(--bg-dark); padding: 15px; border-radius: 8px; border: 1px solid var(--danger); margin-top: 15px;">
+    <h4 style="color: var(--danger); margin-bottom: 10px;">🔴 Analyse en Direct</h4>
+    
+    <!-- SECTION CORNERS -->
+    <p style="font-size:12px; color:var(--text-muted); margin-bottom:5px;">Corners Live</p>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div><label>Minute</label><input type="number" id="liveMinute" value="60"></div>
+        <div><label>Ligne visée</label><input type="number" step="0.5" id="liveLigne" value="9.5"></div>
+        <div><label>Corners Dom</label><input type="number" id="liveCornersDom" value="3"></div>
+        <div><label>Corners Ext</label><input type="number" id="liveCornersExt" value="2"></div>
+        <div><label>Score Dom</label><input type="number" id="liveScoreDom" value="1"></div>
+        <div><label>Score Ext</label><input type="number" id="liveScoreExt" value="0"></div>
+    </div>
+    <div style="margin-top: 10px;">
+        <label>Cote (Corners)</label>
+        <input type="number" step="0.01" id="liveCote" value="2.10">
+    </div>
+    <button onclick="analyserLive()" style="background-color: var(--danger); margin-top: 15px; margin-bottom: 20px;">⚡ Calculer la Value Corners</button>
+
+    <!-- SECTION SCORE EXACT -->
+    <hr style="border-color: var(--border); margin-bottom: 15px;">
+    <p style="font-size:12px; color:var(--text-muted); margin-bottom:5px;">Score Exact Live</p>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div><label>Minute</label><input type="number" id="lsMinute" value="70"></div>
+        <div><label>Score pari (ex: 2-1)</label><input type="text" id="lsScorePari" value="2-1"></div>
+        <div><label>Score Dom Actuel</label><input type="number" id="lsScoreDom" value="1"></div>
+        <div><label>Score Ext Actuel</label><input type="number" id="lsScoreExt" value="1"></div>
+    </div>
+    <div style="margin-top: 10px;">
+        <label>Cote (Score Exact)</label>
+        <input type="number" step="0.01" id="lsCote" value="8.50">
+    </div>
+    <button onclick="analyserLiveScore()" style="background-color: var(--blue); margin-top: 15px;">⚡ Calculer la Value Score Exact</button>
+        </div>
                         <h4 style="color: var(--danger); margin-bottom: 10px;">🔴 Analyse en Direct</h4>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                             <div><label>Minute</label><input type="number" id="liveMinute" value="60"></div>
@@ -279,6 +312,31 @@
                 alert(`🔴 RÉSULTAT LIVE :\n\nProbabilité : ${data.analyse_live.probabilite_live}%\n${data.verdict_value}`);
             } catch (e) { alert("Erreur de connexion."); }
         }
+
+        async function analyserLiveScore() {
+    const matchId = document.getElementById('matchId').value;
+    if(!matchId) { alert("Veuillez sélectionner un match en haut."); return; }
+    
+    const minute = document.getElementById('lsMinute').value;
+    const scorePari = document.getElementById('lsScorePari').value;
+    const sDom = document.getElementById('lsScoreDom').value;
+    const sExt = document.getElementById('lsScoreExt').value;
+    const cote = document.getElementById('lsCote').value;
+
+    try {
+        const url = `/predict-live-score/${matchId}?minute=${minute}&score_dom=${sDom}&score_ext=${sExt}&score_pari=${scorePari}&cote_score=${cote}`;
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.erreur) { alert(data.erreur); return; }
+
+        document.getElementById('resultats').style.display = 'none';
+        alert(`🏁 RÉSULTAT SCORE EXACT LIVE :\n\nProbabilité ORION : ${data.analyse_live_score.probabilite_estimee_par_orion}%\nEdge : ${data.verdict_market_drift.edge}%\n${data.verdict_market_drift.statut_drift}`);
+        
+    } catch (e) {
+        alert("Erreur de connexion.");
+    }
+    }
 
         async function chargerMatchs() {
             try {
