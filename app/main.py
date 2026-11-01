@@ -9,11 +9,12 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from app.db_models import Base, Competition, Match, MatchStat, Prediction
 from app.engine import (
+from app.engine import (
     calc_poisson, calc_binomiale_negative, calc_monte_carlo, 
     calc_lambda_dixon_coles, calc_lambda_bayesien, calc_hawkes_impact, 
     calc_shadow_market, calc_live_corners, calc_kalman_filter, 
     calc_markov_impact, calc_time_intensity, apply_copula_tail_dependence, 
-    calc_bivariate_poisson_matrix
+    calc_bivariate_poisson_matrix, calc_viterbi_state, apply_evt
 )
 from datetime import datetime, timedelta
 import asyncio
@@ -383,18 +384,26 @@ async def predict_ht_score(match_id_local: int):
             elif m.equipe_exterieur == match.equipe_exterieur and m.score_exterieur is not None: buts_ext += m.score_exterieur; nb_ext += 1
         moy_buts_ext = (buts_ext / nb_ext) if nb_ext > 0 else 1.2
 
-        # 2. Application des Couches
+        # 2. Couches Magiques
+        # Intensité temporelle
         facteur_temps = calc_time_intensity(minute=45, lambda_total_match=(moy_buts_dom + moy_buts_ext))
-        lambda_dom_ajuste = (moy_buts_dom / 2) * facteur_temps
-        lambda_ext_ajuste = (moy_buts_ext / 2) * facteur_temps
+        
+        # Viterbi (État du match à la mi-temps, score initial 0-0)
+        etat_viterbi = calc_viterbi_state(minute=45, score_dom=0, score_ext=0)
+        
+        lambda_dom_ajuste = (moy_buts_dom / 2) * facteur_temps * etat_viterbi
+        lambda_ext_ajuste = (moy_buts_ext / 2) * facteur_temps * etat_viterbi
 
         matrice = calc_bivariate_poisson_matrix(lambda_dom_ajuste, lambda_ext_ajuste, max_buts=3)
         
         scores_ajustes = []
         for s in matrice:
             i, j = map(int, s["score"].split("-"))
+            # Application de la copule
             proba_copule = apply_copula_tail_dependence(i, j, s["proba"], lambda_dom_ajuste + lambda_ext_ajuste)
-            scores_ajustes.append({"score": s["score"], "proba": proba_copule})
+            # Application de l'EVT
+            proba_finale = apply_evt(i, j, proba_copule, lambda_dom_ajuste + lambda_ext_ajuste)
+            scores_ajustes.append({"score": s["score"], "proba": proba_finale})
             
         scores_ajustes.sort(key=lambda x: x["proba"], reverse=True)
         top_3 = scores_ajustes[:3]
@@ -574,61 +583,52 @@ async def predict_ft_score(match_id_local: int):
         match = db.query(Match).filter(Match.id == match_id_local).first()
         if not match: return {"erreur": "Match introuvable."}
 
-        # 1. Calcul des moyennes de buts (comme avant)
-        stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
-            (Match.equipe_domicile == match.equipe_domicile) | (Match.equipe_exterieur == match.equipe_domicile)
-        ).all()
-        buts_dom, nb_matchs_dom = 0, 0
+        # 1. Moyennes de buts
+        stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter((Match.equipe_domicile == match.equipe_domicile) | (Match.equipe_exterieur == match.equipe_domicile)).all()
+        buts_dom, nb_dom = 0, 0
         for stat, m in stats_dom:
-            if m.equipe_domicile == match.equipe_domicile and m.score_domicile is not None:
-                buts_dom += m.score_domicile; nb_matchs_dom += 1
-            elif m.equipe_exterieur == match.equipe_domicile and m.score_exterieur is not None:
-                buts_dom += m.score_exterieur; nb_matchs_dom += 1
-        moyenne_buts_dom = (buts_dom / nb_matchs_dom) if nb_matchs_dom > 0 else 1.5
+            if m.equipe_domicile == match.equipe_domicile and m.score_domicile is not None: buts_dom += m.score_domicile; nb_dom += 1
+            elif m.equipe_exterieur == match.equipe_domicile and m.score_exterieur is not None: buts_dom += m.score_exterieur; nb_dom += 1
+        moy_buts_dom = (buts_dom / nb_dom) if nb_dom > 0 else 1.5
 
-        stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
-            (Match.equipe_domicile == match.equipe_exterieur) | (Match.equipe_exterieur == match.equipe_exterieur)
-        ).all()
-        buts_ext, nb_matchs_ext = 0, 0
+        stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter((Match.equipe_domicile == match.equipe_exterieur) | (Match.equipe_exterieur == match.equipe_exterieur)).all()
+        buts_ext, nb_ext = 0, 0
         for stat, m in stats_ext:
-            if m.equipe_domicile == match.equipe_exterieur and m.score_domicile is not None:
-                buts_ext += m.score_domicile; nb_matchs_ext += 1
-            elif m.equipe_exterieur == match.equipe_exterieur and m.score_exterieur is not None:
-                buts_ext += m.score_exterieur; nb_matchs_ext += 1
-        moyenne_buts_ext = (buts_ext / nb_matchs_ext) if nb_matchs_ext > 0 else 1.2
-
-        lambda_total = moyenne_buts_dom + moyenne_buts_ext
+            if m.equipe_domicile == match.equipe_exterieur and m.score_domicile is not None: buts_ext += m.score_domicile; nb_ext += 1
+            elif m.equipe_exterieur == match.equipe_exterieur and m.score_exterieur is not None: buts_ext += m.score_exterieur; nb_ext += 1
+        moy_buts_ext = (buts_ext / nb_ext) if nb_ext > 0 else 1.2
 
         # 2. Application des Couches Magiques
-        # Couche 2 : Intensité temporelle (on est à la 90ème minute pour le FT)
-        facteur_temps = calc_time_intensity(minute=90, lambda_total_match=lambda_total)
-        lambda_dom_ajuste = moyenne_buts_dom * facteur_temps
-        lambda_ext_ajuste = moyenne_buts_ext * facteur_temps
+        # Intensité temporelle (90 min)
+        facteur_temps = calc_time_intensity(minute=90, lambda_total_match=(moy_buts_dom + moy_buts_ext))
+        
+        # Viterbi (État du match à la 90ème, score initial 0-0)
+        etat_viterbi = calc_viterbi_state(minute=90, score_dom=0, score_ext=0)
+        
+        lambda_dom_ajuste = moy_buts_dom * facteur_temps * etat_viterbi
+        lambda_ext_ajuste = moy_buts_ext * facteur_temps * etat_viterbi
 
-        # Couche 1 : Matrice Bivariate Poisson (Dixon-Coles)
+        # Matrice Bivariate Poisson (Dixon-Coles)
         matrice = calc_bivariate_poisson_matrix(lambda_dom_ajuste, lambda_ext_ajuste, max_buts=5)
-
-        # Couche 3 : Copules (On ajuste les scores extrêmes)
+        
         scores_ajustes = []
         for s in matrice:
             i, j = map(int, s["score"].split("-"))
+            # Application de la copule
             proba_copule = apply_copula_tail_dependence(i, j, s["proba"], lambda_dom_ajuste + lambda_ext_ajuste)
-            scores_ajustes.append({"score": s["score"], "proba": proba_copule})
-
-        # On re-trie après ajustement
+            # Application de l'EVT (Scores extrêmes)
+            proba_finale = apply_evt(i, j, proba_copule, lambda_dom_ajuste + lambda_ext_ajuste)
+            scores_ajustes.append({"score": s["score"], "proba": proba_finale})
+            
         scores_ajustes.sort(key=lambda x: x["proba"], reverse=True)
         top_3 = scores_ajustes[:3]
 
         return {
             "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
-            "top_scores_finaux": [
-                {"score": s["score"], "probabilite": round(s["proba"] * 100, 2)} for s in top_3
-            ]
+            "top_scores_finaux": [{"score": s["score"], "probabilite": round(s["proba"] * 100, 2)} for s in top_3]
         }
-    except Exception as e:
-        return {"erreur": str(e)}
-    finally:
-        db.close()
+    except Exception as e: return {"erreur": str(e)}
+    finally: db.close()
 
 @app.get("/clean-duplicates")
 async def clean_duplicates():
