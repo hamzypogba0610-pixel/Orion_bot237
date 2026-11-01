@@ -401,13 +401,28 @@
             } catch (e) { container.innerHTML = '<p style="color:red; text-align:center;">Erreur de connexion.</p>'; }
         }
 
-        async function validerResultat(predictionId) {
-            const valeur = parseFloat(document.getElementById(`res_${predictionId}`).value);
-            if (isNaN(valeur)) { alert("Entrez un nombre."); return; }
+                async function validerResultat(predictionId) {
+            const input = document.getElementById(`res_${predictionId}`);
+            const valeur = parseFloat(input.value);
+            
+            if (isNaN(valeur)) { 
+                alert("Veuillez entrer un nombre valide."); 
+                return; 
+            }
+            
             try {
-                const result = await (await fetch(`/ajouter-resultat/${predictionId}?resultat_reel=${valeur}`, { method: 'POST' })).json();
-                alert(result.erreur ? "Erreur : " + result.erreur : "✅ " + result.message); await chargerHistorique();
-            } catch (e) { alert("Erreur."); }
+                const response = await fetch(`/ajouter-resultat/${predictionId}?resultat_reel=${valeur}`, { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.erreur) {
+                    alert("❌ Erreur : " + result.erreur);
+                } else {
+                    alert(result.message ? "✅ " + result.message : "✅ Résultat enregistré avec succès !");
+                }
+                await chargerHistorique();
+            } catch (e) { 
+                alert("Erreur de connexion avec le serveur."); 
+            }
         }
     </script>
 </body>
