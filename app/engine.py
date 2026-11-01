@@ -266,3 +266,41 @@ def calc_bivariate_poisson_matrix(lambda_dom, lambda_ext, max_buts=5):
     # On trie pour avoir les scores les plus probables en premier
     matrix.sort(key=lambda x: x["proba"], reverse=True)
     return matrix
+
+def calc_time_intensity(minute, lambda_total_match):
+    """
+    Calcule un multiplicateur d'intensité en fonction de la minute.
+    Les buts sont plus probables en fin de match (fatigue, prise de risque).
+    """
+    if minute <= 15:
+        facteur = 0.85 # Début de match, on s'observe
+    elif minute <= 30:
+        facteur = 0.95
+    elif minute <= 45:
+        facteur = 1.05 # Juste avant la mi-temps
+    elif minute <= 60:
+        facteur = 1.10
+    elif minute <= 75:
+        facteur = 1.20 # Le match s'ouvre
+    else:
+        facteur = 1.35 # Money time, tout peut arriver
+        
+    return facteur
+
+def apply_copula_tail_dependence(score_dom, score_ext, proba_base, lambda_total):
+    """
+    Applique un ajustement de copule (dépendance de queue).
+    Augmente légèrement la probabilité des scores extrêmes (ex: 3-0, 4-2).
+    """
+    multiplicateur = 1.0
+    
+    # Si le match a un potentiel de buts élevé (lambda_total > 3)
+    if lambda_total > 3.0:
+        ecart = abs(score_dom - score_ext)
+        total_buts = score_dom + score_ext
+        
+        # Si c'est un score large (ex: écart de 3 buts ou total >= 4 buts)
+        if ecart >= 3 or total_buts >= 4:
+            multiplicateur = 1.15 # On booste la proba de ces scores de 15%
+            
+    return proba_base * multiplicateur
