@@ -233,3 +233,36 @@ def calc_markov_impact(historique_corners):
     multiplicateur = 1.0 + (proba_tempete * 0.20) # Max +20% si 100% de chances de tempête
     
     return min(multiplicateur, 1.20)
+
+def calc_bivariate_poisson_matrix(lambda_dom, lambda_ext, max_buts=5):
+    """
+    Calcule la matrice des probabilités de tous les scores exacts (0-0 à 5-5).
+    Utilise une correction de Dixon-Coles pour les scores faibles.
+    """
+    # Facteur de corrélation (rho). Une valeur négative augmente la proba des 0-0, 1-0, 0-1, 1-1
+    rho = -0.05 
+    
+    matrix = []
+    
+    for i in range(max_buts + 1):
+        for j in range(max_buts + 1):
+            # Probabilité de base (Poisson indépendant)
+            p_base = poisson.pmf(i, lambda_dom) * poisson.pmf(j, lambda_ext)
+            
+            # Correction de Dixon-Coles pour les petits scores
+            facteur = 1.0
+            if i == 0 and j == 0:
+                facteur = 1 - (lambda_dom * lambda_ext * rho)
+            elif i == 1 and j == 0:
+                facteur = 1 + (lambda_ext * rho)
+            elif i == 0 and j == 1:
+                facteur = 1 + (lambda_dom * rho)
+            elif i == 1 and j == 1:
+                facteur = 1 - rho
+                
+            proba_finale = p_base * facteur
+            matrix.append({"score": f"{i}-{j}", "proba": proba_finale})
+            
+    # On trie pour avoir les scores les plus probables en premier
+    matrix.sort(key=lambda x: x["proba"], reverse=True)
+    return matrix
