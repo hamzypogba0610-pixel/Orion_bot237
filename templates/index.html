@@ -376,29 +376,66 @@
         }
 
         async function chargerHistorique() {
-            const container = document.getElementById('listeHistorique');
-            container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Chargement...</p>';
-            try {
-                try {
-                    const stats = await (await fetch('/api/calibration')).json();
-                    if (!stats.erreur && stats.total_predictions_analysees > 0) {
-                        document.getElementById('statsCalibration').style.display = 'block';
-                        document.getElementById('statTotal').innerText = stats.total_predictions_analysees;
-                        document.getElementById('statReussite').innerText = stats.taux_reussite_reel + '%';
-                        document.getElementById('statProba').innerText = stats.probabilite_moyenne_annoncee + '%';
-                        document.getElementById('statDiagnostic').innerText = stats.diagnostic_calibration;
-                    }
-                } catch (e) {}
+    const container = document.getElementById('listeHistorique');
+    container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Chargement...</p>';
+    
+    try {
+        // 1. On charge la liste des prédictions d'abord
+        const response = await fetch('/api/historique');
+        const historique = await response.json();
+        
+        if (historique.erreur) { 
+            container.innerHTML = `<p style="color:red; text-align:center;">Erreur: ${historique.erreur}</p>`; 
+            return; 
+        }
+        
+        if (historique.length === 0) { 
+            container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Aucune analyse sauvegardée.</p>'; 
+            return; 
+        }
 
-                const historique = await (await fetch('/api/historique')).json();
-                if (historique.erreur) { container.innerHTML = `<p style="color:red; text-align:center;">Erreur: ${historique.erreur}</p>`; return; }
-                if (historique.length === 0) { container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Aucune analyse.</p>'; return; }
-                container.innerHTML = '';
-                historique.forEach(h => {
-                    let actionHtml = (h.statut === 'en_attente' || h.statut === null) ? `<div style="margin-top: 10px; display: flex; gap: 10px; align-items: center;"><input type="number" id="res_${h.id}" placeholder="Résultat" style="padding: 8px; border-radius: 5px; border: 1px solid var(--border); background: var(--bg-dark); color: white; width: 100px; font-size: 14px;"><button onclick="validerResultat(${h.id})" style="padding: 8px; width: auto; font-size: 12px; background: var(--accent);">Valider</button></div>` : (h.statut === 'gagne' ? `<span style="color: var(--accent); font-weight: bold; font-size: 12px;">✅ GAGNÉ</span>` : `<span style="color: var(--danger); font-weight: bold; font-size: 12px;">❌ PERDU</span>`);
-                    container.innerHTML += `<div class="history-item" style="flex-direction: column; align-items: flex-start;"><div style="display: flex; justify-content: space-between; width: 100%;"><div class="history-info"><h4>${h.match}</h4><p>${h.marche === 'corners' ? '📐 C' : '🟨 K'} | Ligne: ${h.ligne} | ${h.date}</p></div><div class="history-proba"><span>${h.probabilite}%</span></div></div>${actionHtml}</div>`;
-                });
-            } catch (e) { container.innerHTML = '<p style="color:red; text-align:center;">Erreur de connexion.</p>'; }
+        container.innerHTML = '';
+        historique.forEach(h => {
+            let marcheLabel = h.marche === 'corners' ? '📐 C' : '🟨 K';
+            let actionHtml = '';
+            
+            if (h.statut === 'en_attente' || h.statut === null) {
+                actionHtml = `<div style="margin-top: 10px; display: flex; gap: 10px; align-items: center;"><input type="number" step="1" id="res_${h.id}" placeholder="Résultat" style="padding: 8px; border-radius: 5px; border: 1px solid var(--border); background: var(--bg-dark); color: white; width: 100px; font-size: 14px;"><button onclick="validerResultat(${h.id})" style="padding: 8px; width: auto; font-size: 12px; background: var(--accent);">Valider</button></div>`;
+            } else if (h.statut === 'gagne') { 
+                actionHtml = `<span style="color: var(--accent); font-weight: bold; font-size: 12px;">✅ GAGNÉ (Résultat: ${h.resultat_reel})</span>`;
+            } else { 
+                actionHtml = `<span style="color: var(--danger); font-weight: bold; font-size: 12px;">❌ PERDU (Résultat: ${h.resultat_reel})</span>`; 
+            }
+            
+            container.innerHTML += `
+                <div class="history-item" style="flex-direction: column; align-items: flex-start;">
+                    <div style="display: flex; justify-content: space-between; width: 100%;">
+                        <div class="history-info"><h4>${h.match}</h4><p>${marcheLabel} | Ligne: ${h.ligne} | ${h.date}</p></div>
+                        <div class="history-proba"><span>${h.probabilite}%</span></div>
+                    </div>
+                    ${actionHtml}
+                </div>
+            `;
+        });
+
+        // 2. ON MET A JOUR LE BILAN EN DERNIER
+        try {
+            const stats = await (await fetch('/api/calibration')).json();
+            if (stats.total_predictions_analysees > 0) {
+                document.getElementById('statsCalibration').style.display = 'block';
+                document.getElementById('statTotal').innerText = stats.total_predictions_analysees;
+                document.getElementById('statReussite').innerText = stats.taux_reussite_reel + '%';
+                document.getElementById('statProba').innerText = stats.probabilite_moyenne_annoncee + '%';
+                
+                const diag = document.getElementById('statDiagnostic'); 
+                diag.innerText = stats.diagnostic_calibration;
+                diag.style.color = stats.diagnostic_calibration.includes('Bien') ? 'var(--accent)' : (stats.diagnostic_calibration.includes('confiant') ? 'var(--danger)' : 'var(--blue)');
+            }
+        } catch (e) { console.log("Stats non chargées"); }
+
+    } catch (e) { 
+        container.innerHTML = '<p style="color:red; text-align:center;">Erreur de connexion.</p>'; 
+    }
         }
 
                 async function validerResultat(predictionId) {
