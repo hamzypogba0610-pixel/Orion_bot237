@@ -155,6 +155,28 @@
                         <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid #ec4899;">Markov: <span id="m_markov" style="float:right; font-weight:bold; color:#ec4899;"></span></div>
                     </div>
                     </div>
+                            <!-- MOTEUR D'ENSEMBLE POUR LES CARTONS -->
+<div class="market-card" style="border: 2px solid #f59e0b; background: linear-gradient(135deg, #1e293b, #0f172a);">
+    <div class="market-header">
+        <span class="market-title" style="color: #f59e0b;">🧠 Moteur d'Ensemble Cartons (8 Modèles)</span>
+        <span class="market-total" id="ensembleCardsFiabilite" style="background:#f59e0b; color:#fff;">...</span>
+    </div>
+    <div style="text-align: center; margin-bottom: 15px;">
+        <div style="font-size: 32px; font-weight: 800; color: #f59e0b;" id="ensembleCardsProbaFinale">--%</div>
+        <div style="font-size: 12px; color: var(--text-muted);">Probabilité de +4.5 Cartons (Ensemble)</div>
+    </div>
+    <div id="shadowMarketCardsResult" style="margin-bottom: 15px; font-size: 13px; text-align: center; font-weight: bold;"></div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
+        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Poisson: <span id="c_poisson" style="float:right; font-weight:bold;"></span></div>
+        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Binom. Nég: <span id="c_nbinom" style="float:right; font-weight:bold;"></span></div>
+        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Monte Carlo: <span id="c_mc" style="float:right; font-weight:bold;"></span></div>
+        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Dixon-Coles: <span id="c_dc" style="float:right; font-weight:bold;"></span></div>
+        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Bayésien: <span id="c_bayes" style="float:right; font-weight:bold;"></span></div>
+        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid var(--blue);">Hawkes: <span id="c_hawkes" style="float:right; font-weight:bold; color:var(--blue);"></span></div>
+        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid #a855f7;">Kalman: <span id="c_kalman" style="float:right; font-weight:bold; color:#a855f7;"></span></div>
+        <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid #ec4899;">Markov: <span id="c_markov" style="float:right; font-weight:bold; color:#ec4899;"></span></div>
+    </div>
+</div>
 
                             <!-- CARTE CORNERS -->
             <div class="market-card">
@@ -368,6 +390,8 @@
                 const dataFT = await resFT.json();
                 const resEnsemble = await fetch(`/predict-ensemble/${matchId}?meteo=${meteo}&cote=1.85`);
                 const dataEnsemble = await resEnsemble.json();
+                const resEnsembleCards = await fetch(`/predict-ensemble-cards/${matchId}?arbitre_profil=${arbitreProfil}&cote=1.85`);
+                const dataEnsembleCards = await resEnsembleCards.json();
 
                 if (dataC.erreur) { alert("❌ Erreur Corners : " + dataC.erreur); return; }
                 if (dataK.erreur) { alert("❌ Erreur Cartons : " + dataK.erreur); return; }
@@ -388,6 +412,32 @@
                 if (dataC.contexte) { ctxDiv.style.display = 'block'; ctxDiv.innerHTML = `📊 <b>Force des équipes :</b> Moyenne Championnat: ${dataC.contexte.moyenne_championnat} | Attaque Dom: ${dataC.contexte.force_attaque_dom} | Défense Ext: ${dataC.contexte.force_defense_ext}`; }
 
                 if (dataEnsemble.ensemble_final) {
+                    // --- REMPLISSAGE DU MOTEUR D'ENSEMBLE CARTONS ---
+if (dataEnsembleCards.ensemble_final) {
+    document.getElementById('ensembleCardsProbaFinale').innerText = dataEnsembleCards.ensemble_final + '%';
+    const fiabBadgeC = document.getElementById('ensembleCardsFiabilite');
+    fiabBadgeC.innerText = dataEnsembleCards.fiabilite;
+    if(dataEnsembleCards.fiabilite.includes('HAUTE')) fiabBadgeC.style.background = 'var(--accent)';
+    if(dataEnsembleCards.fiabilite.includes('MOYENNE')) fiabBadgeC.style.background = '#f59e0b';
+    if(dataEnsembleCards.fiabilite.includes('FAIBLE')) fiabBadgeC.style.background = 'var(--danger)';
+
+    document.getElementById('c_poisson').innerText = dataEnsembleCards.probabilites.poisson + '%';
+    document.getElementById('c_nbinom').innerText = dataEnsembleCards.probabilites.binomiale_negative + '%';
+    document.getElementById('c_mc').innerText = dataEnsembleCards.probabilites.monte_carlo + '%';
+    document.getElementById('c_dc').innerText = dataEnsembleCards.probabilites.dixon_coles + '%';
+    document.getElementById('c_bayes').innerText = dataEnsembleCards.probabilites.bayesien + '%';
+    document.getElementById('c_hawkes').innerText = dataEnsembleCards.probabilites.hawkes + '%';
+    document.getElementById('c_kalman').innerText = dataEnsembleCards.probabilites.kalman + '%';
+    document.getElementById('c_markov').innerText = dataEnsembleCards.probabilites.markov + '%';
+
+    const shadowDivC = document.getElementById('shadowMarketCardsResult');
+    if (dataEnsembleCards.shadow_market && !dataEnsembleCards.shadow_market.erreur) {
+        shadowDivC.style.display = 'block';
+        let edgeC = dataEnsembleCards.shadow_market.edge;
+        shadowDivC.innerHTML = `Cote: ${dataEnsembleCards.shadow_market.cote_saisie} | Edge: ${edgeC}% <br> <span style="font-size:14px;">${dataEnsembleCards.shadow_market.statut_shadow_market}</span>`;
+        shadowDivC.style.color = edgeC > 5 ? 'var(--accent)' : (edgeC > 0 ? '#f59e0b' : 'var(--danger)');
+    } else { shadowDivC.style.display = 'none'; }
+    }
                     document.getElementById('ensembleProbaFinale').innerText = dataEnsemble.ensemble_final + '%';
                     const fiabBadge = document.getElementById('ensembleFiabilite');
                     fiabBadge.innerText = dataEnsemble.fiabilite;
