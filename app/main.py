@@ -9,11 +9,12 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from app.db_models import Base, Competition, Match, MatchStat, Prediction
 from app.engine import (
-    calc_poisson, calc_binomiale_negative, calc_monte_carlo, 
-    calc_lambda_dixon_coles, calc_lambda_bayesien, calc_hawkes_impact, 
-    calc_shadow_market, calc_live_corners, calc_kalman_filter, 
-    calc_markov_impact, calc_time_intensity, apply_copula_tail_dependence, 
-    calc_bivariate_poisson_matrix, calc_viterbi_state, apply_evt
+    calc_poisson, calc_binomiale_negative, calc_monte_carlo,
+    calc_lambda_dixon_coles, calc_lambda_bayesien, calc_hawkes_impact,
+    calc_shadow_market, calc_live_corners, calc_kalman_filter,
+    calc_markov_impact, calc_time_intensity, apply_copula_tail_dependence,
+    calc_bivariate_poisson_matrix, calc_viterbi_state, apply_evt,
+    calc_live_score_drift
 )
 from datetime import datetime, timedelta
 import asyncio
@@ -874,3 +875,82 @@ async def predict_live(
         return {"erreur": str(e)}
     finally:
         db.close()
+
+@app.get("/predict-live-score/{match_id_local}")
+async def predict_live_score(
+    match_id_local: int, 
+    minute: int, 
+    score_dom: int, 
+    score_ext: int, 
+    score_pari: str, # Ex: "2-1"
+    cote_score: float
+):
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        match = db.query(Match).filter(Match.id == match_id_local).first()
+        if not match: return {"erreur": "Match introuvable."}
+
+        # 1. Moyennes de buts (Base)
+        stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter((Match.equipe_domicile == match.equipe_domicile) | (Match.equipe_exterieur == match.equipe_domicile)).all()
+        buts_dom, nb_dom = 0, 0
+        for stat, m in stats_dom:
+            if m.equipe_domicile == match.equipe_domicile and m.score_domicile is not None: buts_dom += m.score_domicile; nb_dom += 1
+            elif m.equipe_exterieur == match.equipe_domicile and m.score_exterieur is not None: buts_dom += m.score_exterieur; nb_dom += 1
+        moy_buts_dom = (buts_dom / nb_dom) if nb_dom > 0 else 1.5
+
+        stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter((Match.equipe_domicile == match.equipe_exterieur) | (Match.equipe_exterieur == match.equipe_exterieur)).all()
+        buts_ext, nb_ext = 0, 0
+        for stat, m in stats_ext:
+            if m.equipe_domicile == match.equipe_exterieur and m.score_domicile is not None: buts_ext += m.score_domicile; nb_ext += 1
+            elif m.equipe_exterieur == match.equipe_exterieur and m.score_exterieur is not None: buts_ext += m.score_exterieur; nb_ext += 1
+        moy_buts_ext = (buts_ext / nb_ext) if nb_ext > 0 else 1.2
+
+        # 2. Calcul du temps restant et ajustement des Lambdas
+        temps_restant = max(0, 90 - minute)
+        facteur_temps = temps_restant / 90 # Proportion du match restante
+        
+        lambda_dom_restant = moy_buts_dom * facteur_temps
+        lambda_ext_restant = moy_buts_ext * facteur_temps
+
+        # 3. Application de Viterbi (État du match en cours)
+        etat_viterbi = calc_viterbi_state(minute=minute, score_dom=score_dom, score_ext=score_ext)
+        lambda_dom_restant *= etat_viterbi
+        lambda_ext_restant *= etat_viterbi
+
+        # 4. Matrice Bivariate Poisson pour le temps restant
+        matrice = calc_bivariate_poisson_matrix(lambda_dom_restant, lambda_ext_restant, max_buts=4)
+        
+        # 5. On cherche la probabilité du score final demandé
+        # Ex: Si score actuel = 1-1 et score_pari = "2-1", il faut 1 but de plus pour Dom et 0 pour Ext.
+        score_cible = list(map(int, score_pari.split("-")))
+        buts_a_marquer_dom = score_cible[0] - score_dom
+        buts_a_marquer_ext = score_cible[1] - score_ext
+
+        proba_score_final = 0.0
+        if buts_a_marquer_dom >= 0 and buts_a_marquer_ext >= 0:
+            # On cherche la proba dans la matrice (probabilité de marquer X buts et Y buts restants)
+            for s in matrice:
+                i, j = map(int, s["score"].split("-"))
+                if i == buts_a_marquer_dom and j == buts_a_marquer_ext:
+                    proba_score_final = s["proba"] * 100
+                    break
+        
+        # 6. Application de la Couche 6 (Market Drift)
+        drift_result = calc_live_score_drift(proba_score_final, cote_score)
+
+        return {
+            "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
+            "etat_actuel": {
+                "minute": minute,
+                "score_actuel": f"{score_dom} - {score_ext}",
+                "score_pari": score_pari,
+                "cote_bookmaker": cote_score
+            },
+            "analyse_live_score": {
+                "probabilite_estimee_par_orion": round(proba_score_final, 2)
+            },
+            "verdict_market_drift": drift_result
+        }
+    except Exception as e: return {"erreur": str(e)}
+    finally: db.close()
