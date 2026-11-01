@@ -14,7 +14,7 @@ from app.engine import (
     calc_shadow_market, calc_live_corners, calc_kalman_filter,
     calc_markov_impact, calc_time_intensity, apply_copula_tail_dependence,
     calc_bivariate_poisson_matrix, calc_viterbi_state, apply_evt,
-    calc_live_score_drift
+    calc_live_score_drift, calc_live_cards
 )
 from datetime import datetime, timedelta
 import asyncio
@@ -1064,6 +1064,76 @@ async def predict_ensemble_cards(match_id_local: int, arbitre_profil: str = "Nor
             "ecart_type": round(ecart_type, 2),
             "fiabilite": fiabilite,
             "shadow_market": shadow_result
+        }
+    except Exception as e:
+        return {"erreur": str(e)}
+    finally:
+        db.close()
+
+@app.get("/predict-live-cards/{match_id_local}")
+async def predict_live_cards(
+    match_id_local: int, 
+    minute: int, 
+    cartons_dom: int, 
+    cartons_ext: int, 
+    score_dom: int, 
+    score_ext: int, 
+    ligne: float, 
+    cote: float,
+    arbitre_profil: str = "Normal"
+):
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        match = db.query(Match).filter(Match.id == match_id_local).first()
+        if not match: return {"erreur": "Match introuvable."}
+
+        # 1. Récupération des moyennes historiques de cartons
+        stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.equipe_domicile == match.equipe_domicile).all()
+        c_dom, nb_dom = 0, 0
+        for stat, m in stats_dom:
+            if stat.cartons_jaunes_domicile is not None:
+                c_dom += stat.cartons_jaunes_domicile; nb_dom += 1
+        moy_dom = (c_dom / nb_dom) if nb_dom > 0 else 2.0
+
+        stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.equipe_exterieur == match.equipe_exterieur).all()
+        c_ext, nb_ext = 0, 0
+        for stat, m in stats_ext:
+            if stat.cartons_jaunes_exterieur is not None:
+                c_ext += stat.cartons_jaunes_exterieur; nb_ext += 1
+        moy_ext = (c_ext / nb_ext) if nb_ext > 0 else 2.0
+
+        # 2. Calcul Live
+        cartons_actuels_total = cartons_dom + cartons_ext
+        resultat_live = calc_live_cards(
+            moyenne_cartons_dom=moy_dom, 
+            moyenne_cartons_ext=moy_ext, 
+            minute_actuelle=minute, 
+            cartons_actuels=cartons_actuels_total, 
+            score_dom=score_dom, 
+            score_ext=score_ext, 
+            arbitre_profil=arbitre_profil,
+            ligne=ligne
+        )
+
+        # 3. Calcul de la Value (EV)
+        proba_decimale = resultat_live["probabilite_live"] / 100
+        ev = (proba_decimale * cote) - 1
+        
+        verdict = f"🔥 VALUE BET LIVE (+{round(ev*100, 1)}%)" if ev > 0 else f"❌ Pas de Value ({round(ev*100, 1)}%)"
+
+        return {
+            "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
+            "etat_actuel": {
+                "minute": minute,
+                "score": f"{score_dom} - {score_ext}",
+                "cartons_actuels": cartons_actuels_total,
+                "ligne_visee": ligne,
+                "cote_saisie": cote,
+                "arbitre": arbitre_profil
+            },
+            "analyse_live": resultat_live,
+            "verdict_value": verdict
         }
     except Exception as e:
         return {"erreur": str(e)}
