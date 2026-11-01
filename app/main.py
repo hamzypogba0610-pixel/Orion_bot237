@@ -8,7 +8,13 @@ from scipy.stats import poisson
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from app.db_models import Base, Competition, Match, MatchStat, Prediction
-from app.engine import calc_poisson, calc_binomiale_negative, calc_monte_carlo, calc_lambda_dixon_coles, calc_lambda_bayesien, calc_hawkes_impact, calc_shadow_market, calc_live_corners, calc_kalman_filter, calc_markov_impact
+from app.engine import (
+    calc_poisson, calc_binomiale_negative, calc_monte_carlo, 
+    calc_lambda_dixon_coles, calc_lambda_bayesien, calc_hawkes_impact, 
+    calc_shadow_market, calc_live_corners, calc_kalman_filter, 
+    calc_markov_impact, calc_time_intensity, apply_copula_tail_dependence, 
+    calc_bivariate_poisson_matrix
+)
 from datetime import datetime, timedelta
 import asyncio
 import csv
@@ -581,7 +587,7 @@ async def predict_ft_score(match_id_local: int):
         match = db.query(Match).filter(Match.id == match_id_local).first()
         if not match: return {"erreur": "Match introuvable."}
 
-        # Calcul des moyennes de buts FT (Full Time)
+        # 1. Calcul des moyennes de buts (comme avant)
         stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(
             (Match.equipe_domicile == match.equipe_domicile) | (Match.equipe_exterieur == match.equipe_domicile)
         ).all()
@@ -604,17 +610,27 @@ async def predict_ft_score(match_id_local: int):
                 buts_ext += m.score_exterieur; nb_matchs_ext += 1
         moyenne_buts_ext = (buts_ext / nb_matchs_ext) if nb_matchs_ext > 0 else 1.2
 
-        # Calcul des probabilités pour le score final
-        scores_possibles = []
-        for i in range(6): # 0 à 5 buts
-            for j in range(6):
-                p_dom = poisson.pmf(i, moyenne_buts_dom)
-                p_ext = poisson.pmf(j, moyenne_buts_ext)
-                proba = p_dom * p_ext
-                scores_possibles.append({"score": f"{i}-{j}", "proba": proba})
+        lambda_total = moyenne_buts_dom + moyenne_buts_ext
 
-        scores_possibles.sort(key=lambda x: x["proba"], reverse=True)
-        top_3 = scores_possibles[:3]
+        # 2. Application des Couches Magiques
+        # Couche 2 : Intensité temporelle (on est à la 90ème minute pour le FT)
+        facteur_temps = calc_time_intensity(minute=90, lambda_total_match=lambda_total)
+        lambda_dom_ajuste = moyenne_buts_dom * facteur_temps
+        lambda_ext_ajuste = moyenne_buts_ext * facteur_temps
+
+        # Couche 1 : Matrice Bivariate Poisson (Dixon-Coles)
+        matrice = calc_bivariate_poisson_matrix(lambda_dom_ajuste, lambda_ext_ajuste, max_buts=5)
+
+        # Couche 3 : Copules (On ajuste les scores extrêmes)
+        scores_ajustes = []
+        for s in matrice:
+            i, j = map(int, s["score"].split("-"))
+            proba_copule = apply_copula_tail_dependence(i, j, s["proba"], lambda_dom_ajuste + lambda_ext_ajuste)
+            scores_ajustes.append({"score": s["score"], "proba": proba_copule})
+
+        # On re-trie après ajustement
+        scores_ajustes.sort(key=lambda x: x["proba"], reverse=True)
+        top_3 = scores_ajustes[:3]
 
         return {
             "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
