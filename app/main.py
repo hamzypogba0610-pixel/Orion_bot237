@@ -1139,3 +1139,31 @@ async def predict_live_cards(
         return {"erreur": str(e)}
     finally:
         db.close()
+
+@app.post("/ajouter-resultat/{prediction_id}")
+async def ajouter_resultat(prediction_id: int, resultat_reel: float):
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        pred = db.query(Prediction).filter(Prediction.id == prediction_id).first()
+        if not pred: return {"erreur": "Prédiction introuvable."}
+
+        # On sécurise la ligne de référence au cas où elle serait vide
+        ligne_reference = pred.ligne if pred.ligne is not None else (9.5 if pred.marche == 'corners' else 4.5)
+
+        # Mise à jour du résultat et du statut
+        pred.resultat_reel = resultat_reel
+        pred.date_resultat = datetime.utcnow()
+        
+        if resultat_reel > ligne_reference:
+            pred.statut_prediction = "gagne"
+        else:
+            pred.statut_prediction = "perdu"
+
+        db.commit()
+        return {"message": f"Résultat enregistré ! Statut : {pred.statut_prediction.upper()}"}
+    except Exception as e:
+        db.rollback()
+        return {"erreur": str(e)}
+    finally:
+        db.close()
