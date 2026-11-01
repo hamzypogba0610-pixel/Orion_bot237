@@ -354,3 +354,40 @@ def apply_evt(score_dom, score_ext, proba_base, lambda_total):
         multiplicateur += 0.15 # +15%
         
     return proba_base * multiplicateur
+
+# ==========================================
+# 6. LA COUCHE 6 (Market Drift & Live Arbitrage)
+# ==========================================
+
+def calc_live_score_drift(proba_model, cote_bookmaker, marge_bookmaker=0.15):
+    """
+    Détecte les anomalies de cotes en direct pour les scores exacts.
+    La marge d'un bookmaker sur un score exact est en général de 15% à 20%.
+    """
+    if cote_bookmaker <= 1.0:
+        return {"erreur": "Cote invalide"}
+
+    # Probabilité implicite brute de la cote
+    proba_implicite = (1 / cote_bookmaker) * 100
+    
+    # On retire la marge du bookmaker pour trouver sa "vraie" probabilité
+    proba_reelle_bookmaker = proba_implicite * (1 - marge_bookmaker)
+    
+    # Calcul de l'Edge (Notre avantage)
+    edge = proba_model - proba_reelle_bookmaker
+
+    if edge > 5.0:
+        statut = "🔥 VALUE BET LIVE (Drift détecté)"
+    elif edge > 0:
+        statut = "✅ Léger avantage"
+    else:
+        statut = "❌ Pas d'avantage (Le marché a raison)"
+
+    return {
+        "cote_saisie": cote_bookmaker,
+        "proba_implicite_brute": round(proba_implicite, 2),
+        "proba_reelle_bookmaker_estimee": round(proba_reelle_bookmaker, 2),
+        "notre_proba_model": round(proba_model, 2),
+        "edge": round(edge, 2),
+        "statut_drift": statut
+    }
