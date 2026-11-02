@@ -440,3 +440,120 @@ def calc_live_cards(moyenne_cartons_dom, moyenne_cartons_ext, minute_actuelle, c
         "cartons_manquants": cartons_manquants,
         "probabilite_live": round(p_live, 2)
     }
+
+# ==========================================
+# 8. LES 5 INNOVATIONS ULTIMES (Améliorations de Poisson)
+# ==========================================
+
+def calc_zero_inflated_poisson(lambda_val, ligne, zero_prob=0.10):
+    """
+    Innovation 1 : Zero-Inflated Poisson (ZIP).
+    Gère la probabilité excédentaire d'avoir 0 événement.
+    """
+    # Probabilité de base de Poisson
+    p_poisson = 1 - poisson.cdf(int(np.floor(ligne)), lambda_val)
+    
+    # On mélange avec la probabilité de "zéro structurel"
+    # Si ligne > 0, le zéro structurel a moins d'impact.
+    if ligne > 0:
+        p_finale = (1 - zero_prob) * p_poisson
+    else:
+        p_finale = (1 - zero_prob) * p_poisson + zero_prob
+        
+    return p_finale * 100
+
+def calc_mmpp(lambda_simple, etat_viterbi):
+    """
+    Innovation 2 : Markov-Modulated Poisson Process (MMPP).
+    Ajuste le Lambda de Poisson en fonction de l'état (Viterbi).
+    """
+    # L'état Viterbi renvoie déjà un multiplicateur (ex: 1.4 pour Chaos)
+    # On l'applique directement au Lambda
+    lambda_ajuste = lambda_simple * etat_viterbi
+    return lambda_ajuste
+
+def calc_live_par(corners_recents, temps_restant, ligne):
+    """
+    Innovation 3 : Poisson Auto-Régressif (PAR) pour le Live.
+    Utilise les événements récents (ex: derniers 10 min) pour calculer une intensité locale.
+    """
+    # Si on a des données récentes, on calcule l'intensité réelle
+    if len(corners_recents) > 0:
+        intensite_recente = np.mean(corners_recents)
+    else:
+        intensite_recente = 0.1 # Valeur par défaut (1 corner toutes les 10 min)
+        
+    lambda_restant = temps_restant * intensite_recente
+    p_live = (1 - poisson.cdf(int(np.floor(ligne)), lambda_restant)) * 100
+    
+    return p_live, lambda_restant
+
+def calc_hamilton_regime(historique_corners):
+    """
+    Innovation 4 : Modèle à Changement de Régime de Hamilton.
+    Détecte si l'équipe est dans un Régime Haut (Domination) ou Bas (Méforme).
+    """
+    if len(historique_corners) < 5:
+        return 1.0, "Normal"
+        
+    moyenne = np.mean(historique_corners)
+    
+    # On sépare l'historique en deux : les matchs au-dessus de la moyenne et ceux en dessous
+    matchs_hauts = [c for c in historique_corners if c >= moyenne]
+    matchs_bas = [c for c in historique_corners if c < moyenne]
+    
+    # Si on a assez de données pour les deux régimes
+    if len(matchs_hauts) > 1 and len(matchs_bas) > 1:
+        moyenne_haute = np.mean(matchs_hauts)
+        moyenne_basse = np.mean(matchs_bas)
+        
+        # Le dernier match de l'équipe nous indique son régime actuel
+        dernier_match = historique_corners[-1]
+        
+        if dernier_match >= moyenne:
+            # Régime Haut : on booste le Lambda
+            multiplicateur = moyenne_haute / moyenne
+            return multiplicateur, "Domination (Haut)"
+        else:
+            # Régime Bas : on baisse le Lambda
+            multiplicateur = moyenne_basse / moyenne
+            return multiplicateur, "Méforme (Bas)"
+            
+    return 1.0, "Normal"
+
+def calc_hurst_exponent(historique_corners):
+    """
+    Innovation 5 : Exposant de Hurst (Fractales).
+    Détecte la persistance (Hot Streak) ou l'anti-persistance (Retour à la moyenne).
+    """
+    if len(historique_corners) < 10:
+        return 0.5, "Pas assez de données"
+        
+    # Calcul simplifié du R/S (Rescaled Range)
+    series = np.array(historique_corners)
+    N = len(series)
+    
+    # Moyenne et écart-type
+    mean = np.mean(series)
+    std = np.std(series)
+    
+    if std == 0:
+        return 0.5, "Stable"
+        
+    # Écart cumulé
+    Y = np.cumsum(series - mean)
+    R = np.max(Y) - np.min(Y)
+    
+    # Calcul de H (approximation)
+    if R > 0:
+        H = np.log(R / std) / np.log(N)
+    else:
+        H = 0.5
+        
+    # Interprétation
+    if H > 0.6:
+        return H, "Hot Streak (Persistant)"
+    elif H < 0.4:
+        return H, "Retour à la moyenne"
+    else:
+        return H, "Aléatoire (Normal)"
