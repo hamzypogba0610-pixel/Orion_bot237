@@ -14,7 +14,8 @@ from app.engine import (
     calc_shadow_market, calc_live_corners, calc_kalman_filter,
     calc_markov_impact, calc_time_intensity, apply_copula_tail_dependence,
     calc_bivariate_poisson_matrix, calc_viterbi_state, apply_evt,
-    calc_live_score_drift, calc_live_cards
+    calc_live_score_drift, calc_zero_inflated_poisson, calc_mmpp,
+    calc_live_par, calc_hamilton_regime, calc_hurst_exponent
 )
 from datetime import datetime, timedelta
 import asyncio
@@ -1164,6 +1165,92 @@ async def ajouter_resultat(prediction_id: int, resultat_reel: float):
         return {"message": f"Résultat enregistré ! Statut : {pred.statut_prediction.upper()}"}
     except Exception as e:
         db.rollback()
+        return {"erreur": str(e)}
+    finally:
+        db.close()
+
+@app.get("/predict-advanced/{match_id_local}")
+async def predict_advanced(match_id_local: int):
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        match = db.query(Match).filter(Match.id == match_id_local).first()
+        if not match: return {"erreur": "Match introuvable."}
+
+        # 1. Calcul des moyennes de base
+        stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.equipe_domicile == match.equipe_domicile).all()
+        c_dom, nb_dom = 0, 0
+        liste_dom = []
+        for stat, m in stats_dom:
+            if stat.corners_domicile is not None:
+                c_dom += stat.corners_domicile; nb_dom += 1
+                liste_dom.append(stat.corners_domicile)
+        
+        stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.equipe_exterieur == match.equipe_exterieur).all()
+        c_ext, nb_ext = 0, 0
+        liste_ext = []
+        for stat, m in stats_ext:
+            if stat.corners_exterieur is not None:
+                c_ext += stat.corners_exterieur; nb_ext += 1
+                liste_ext.append(stat.corners_exterieur)
+                
+        moy_dom = (c_dom / nb_dom) if nb_dom > 0 else 5.5
+        moy_ext = (c_ext / nb_ext) if nb_ext > 0 else 4.0
+        lambda_simple = moy_dom + moy_ext
+        ligne = 9.5
+
+        # 2. Application des 5 innovations
+        # Innovation 1 : ZIP (Zero-Inflated)
+        p_zip = calc_zero_inflated_poisson(lambda_simple, ligne, zero_prob=0.05)
+        
+        # Innovation 2 : MMPP (Markov-Modulated) basé sur l'état à la 45ème
+        etat = calc_viterbi_state(minute=45, score_dom=0, score_ext=0)
+        lambda_mmpp = calc_mmpp(lambda_simple, etat)
+        p_mmpp = calc_poisson(lambda_mmpp, ligne)
+        
+        # Innovation 3 : PAR (Auto-Régressif) simulé sur les 10 dernières minutes (approx)
+        # On simule un historique récent avec la fin de la liste
+        recent_corners = liste_dom[-3:] + liste_ext[-3:] 
+        p_par, lambda_par = calc_live_par(recent_corners, temps_restant=10, ligne=2.5)
+
+        # Innovation 4 : Hamilton (Régime)
+        mult_ham_dom, regime_dom = calc_hamilton_regime(liste_dom)
+        mult_ham_ext, regime_ext = calc_hamilton_regime(liste_ext)
+        lambda_hamilton = (moy_dom * mult_ham_dom) + (moy_ext * mult_ham_ext)
+        p_hamilton = calc_poisson(lambda_hamilton, ligne)
+
+        # Innovation 5 : Hurst (Fractales)
+        hurst_val, statut_hurst = calc_hurst_exponent(liste_dom + liste_ext)
+        # Si Hot Streak (H > 0.6), on augmente un peu la proba
+        p_hurst = calc_poisson(lambda_simple * (1 + (hurst_val - 0.5)), ligne)
+
+        return {
+            "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
+            "lambda_base": round(lambda_simple, 2),
+            "innovations": {
+                "1_zero_inflated_poisson": round(p_zip, 2),
+                "2_mmpp": {
+                    "lambda_ajuste": round(lambda_mmpp, 2),
+                    "probabilite": round(p_mmpp, 2)
+                },
+                "3_par_live": {
+                    "lambda_local": round(lambda_par, 2),
+                    "probabilite_10min": round(p_par, 2)
+                },
+                "4_hamilton_regime": {
+                    "regime_domicile": regime_dom,
+                    "regime_exterieur": regime_ext,
+                    "lambda_ajuste": round(lambda_hamilton, 2),
+                    "probabilite": round(p_hamilton, 2)
+                },
+                "5_hurst": {
+                    "valeur_H": round(hurst_val, 3),
+                    "statut": statut_hurst,
+                    "probabilite": round(p_hurst, 2)
+                }
+            }
+        }
+    except Exception as e:
         return {"erreur": str(e)}
     finally:
         db.close()
