@@ -475,15 +475,16 @@ def calc_mmpp(lambda_simple, etat_viterbi):
 def calc_live_par(corners_recents, temps_restant, ligne):
     """
     Innovation 3 : Poisson Auto-Régressif (PAR) pour le Live.
-    Utilise les événements récents (ex: derniers 10 min) pour calculer une intensité locale.
+    Utilise les événements récents pour calculer une intensité locale.
     """
-    # Si on a des données récentes, on calcule l'intensité réelle
     if len(corners_recents) > 0:
-        intensite_recente = np.mean(corners_recents)
+        # On divise par 90 pour obtenir des corners par minute, pas par match !
+        moyenne_match = np.mean(corners_recents)
+        intensite_par_minute = moyenne_match / 90
     else:
-        intensite_recente = 0.1 # Valeur par défaut (1 corner toutes les 10 min)
+        intensite_par_minute = 0.1 # Valeur par défaut (1 corner toutes les 10 min)
         
-    lambda_restant = temps_restant * intensite_recente
+    lambda_restant = temps_restant * intensite_par_minute
     p_live = (1 - poisson.cdf(int(np.floor(ligne)), lambda_restant)) * 100
     
     return p_live, lambda_restant
