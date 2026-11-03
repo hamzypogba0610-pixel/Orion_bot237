@@ -1283,3 +1283,17 @@ async def predict_advanced(match_id_local: int):
         return {"erreur": str(e)}
     finally:
         db.close()
+
+@app.get("/test-ucl")
+async def test_ucl():
+    api_key = os.getenv("API_FOOTBALL_KEY")
+    if not api_key: return {"erreur": "Clé API introuvable"}
+    
+    # On demande les 10 prochains matchs de LDC (ID 2)
+    url = "https://v3.football.api-sports.io/fixtures?league=2&season=2026&next=10"
+    headers = {"x-apisports-key": api_key}
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers)
+        
+    return response.json()
