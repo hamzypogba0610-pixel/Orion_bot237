@@ -1327,3 +1327,101 @@ async def debug_date(date_test: str):
         "total_matchs_trouves": total,
         "exemples_de_matchs": premiers_matchs
     }
+
+@app.get("/scan-today")
+async def scan_today():
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        # On prend les 50 derniers matchs de la base
+        matchs_du_jour = db.query(Match).order_by(Match.id.desc()).limit(50).all()
+        if not matchs_du_jour: return {"message": "Aucun match dans la base."}
+
+        opportunites = []
+
+        for match in matchs_du_jour:
+            # ⚠️ LIGNE COMMENTÉE POUR LE TEST : On accepte les matchs terminés
+            # if match.statut == "FT": continue
+                
+            try:
+                res = await predict_ensemble(match.id, meteo="Sec", cote=1.85)
+                if "erreur" in res: continue
+                    
+                if "HAUTE" in res["fiabilite"] or "MOYENNE" in res["fiabilite"]:
+                    opportunites.append({
+                        "match_id": match.id,
+                        "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
+                        "marche": "Corners (+9.5)",
+                        "probabilite": res["ensemble_final"],
+                        "fiabilite": res["fiabilite"],
+                        "ecart_type": res["ecart_type"]
+                    })
+            except Exception as e:
+                continue
+
+        opportunites.sort(key=lambda x: x["probabilite"], reverse=True)
+        top_3 = opportunites[:3]
+
+        if not top_3: return {"message": "Aucun match avec une fiabilité suffisante n'a été trouvé."}
+
+        return {
+            "message": f"Scan terminé ! {len(opportunites)} opportunités trouvées.",
+            "top_3": top_3
+        }
+    except Exception as e:
+        return {"erreur": str(e)}
+    finally:
+        db.close()
+
+@app.get("/sync-today")
+async def sync_today():
+    api_key = os.getenv("API_FOOTBALL_KEY")
+    if not api_key or not SessionLocal: return {"erreur": "Configuration manquante"}
+    
+    db = SessionLocal()
+    try:
+        dates_recherche = [datetime.now().strftime("%Y-%m-%d"), (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")]
+        top_leagues = [{"id": 39, "season": 2026}, {"id": 140, "season": 2026}, {"id": 135, "season": 2026}, {"id": 61, "season": 2026}, {"id": 78, "season": 2026}]
+        total_matchs_ajoutes = 0
+
+        for date_recherche in dates_recherche:
+            for ligue in top_leagues:
+                url = f"https://v3.football.api-sports.io/fixtures?date={date_recherche}&league={ligue['id']}&season={ligue['season']}"
+                headers = {"x-apisports-key": api_key}
+                
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(url, headers=headers)
+                data = response.json()
+                
+                if data.get("results", 0) == 0: continue
+
+                for m in data["response"]:
+                    id_match_api = m["fixture"]["id"]
+                    competition_locale = db.query(Competition).filter(Competition.id_source == ligue["id"]).first()
+                    
+                    if competition_locale:
+                        match_local = db.query(Match).filter(Match.id_source_apifootball == id_match_api).first()
+                        if not match_local:
+                            date_str = m["fixture"]["date"].replace("Z", "+00:00")
+                            nouveau_match = Match(
+                                competition_id=competition_locale.id,
+                                date_heure=datetime.fromisoformat(date_str),
+                                equipe_domicile=m["teams"]["home"]["name"],
+                                equipe_exterieur=m["teams"]["away"]["name"],
+                                statut=m["fixture"]["status"]["short"],
+                                id_source_apifootball=id_match_api,
+                                score_domicile=m["goals"]["home"],
+                                score_exterieur=m["goals"]["away"],
+                                logo_domicile=m["teams"]["home"]["logo"],
+                                logo_exterieur=m["teams"]["away"]["logo"]
+                            )
+                            db.add(nouveau_match)
+                            total_matchs_ajoutes += 1
+        
+        db.commit()
+        return {"message": f"Succès ! {total_matchs_ajoutes} matchs ajoutés via l'API (recherche par ligue)."}
+    except Exception as e:
+        db.rollback()
+        return {"erreur": str(e)}
+    finally:
+        db.close()
