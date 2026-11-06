@@ -1297,3 +1297,37 @@ async def test_ucl():
         response = await client.get(url, headers=headers)
         
     return response.json()
+
+@app.get("/debug-today")
+async def debug_today():
+    api_key = os.getenv("API_FOOTBALL_KEY")
+    if not api_key: return {"erreur": "Clé API introuvable"}
+    
+    # On demande la date d'aujourd'hui
+    aujourd_hui = datetime.now().strftime("%Y-%m-%d")
+    
+    url = f"https://v3.football.api-sports.io/fixtures?date={aujourd_hui}"
+    headers = {"x-apisports-key": api_key}
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers)
+    data = response.json()
+    
+    total = data.get("results", 0)
+    
+    # On renvoie les 3 premiers matchs pour voir à quoi ils ressemblent
+    premiers_matchs = []
+    if total > 0:
+        for m in data["response"][:3]:
+            premiers_matchs.append({
+                "ligue_id": m["league"]["id"],
+                "ligue_nom": m["league"]["name"],
+                "equipe_dom": m["teams"]["home"]["name"],
+                "equipe_ext": m["teams"]["away"]["name"]
+            })
+            
+    return {
+        "date_demandee": aujourd_hui,
+        "total_matchs_trouves_par_api": total,
+        "exemples_de_matchs": premiers_matchs
+    }
