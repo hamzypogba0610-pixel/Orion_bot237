@@ -15,7 +15,7 @@ from app.engine import (
     calc_markov_impact, calc_time_intensity, apply_copula_tail_dependence,
     calc_bivariate_poisson_matrix, calc_viterbi_state, apply_evt,
     calc_live_score_drift, calc_zero_inflated_poisson, calc_mmpp,
-    calc_live_par, calc_hamilton_regime, calc_hurst_exponent
+    calc_live_par, calc_hamilton_regime, calc_hurst_exponent, calc_live_cards
 )
 from datetime import datetime, timedelta
 import asyncio
