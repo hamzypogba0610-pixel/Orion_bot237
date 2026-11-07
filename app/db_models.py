@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, BigInteger, String, Float, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import declarative_base
 from datetime import datetime
 
@@ -19,7 +19,7 @@ class Match(Base):
     equipe_domicile = Column(String)
     equipe_exterieur = Column(String)
     statut = Column(String)
-    id_source_apifootball = Column(Integer, unique=True)
+    id_source_apifootball = Column(BigInteger, unique=True)
     score_domicile = Column(Integer, nullable=True)
     score_exterieur = Column(Integer, nullable=True)
     logo_domicile = Column(String, nullable=True)
