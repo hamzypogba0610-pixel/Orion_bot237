@@ -1471,21 +1471,20 @@ async def test_5dollar():
         return {"erreur": str(e)}
 
 @app.get("/sync-stats-today")
-async def sync_stats_today():
+async def sync_stats_today(days_ago: int = 1):
     api_key = os.getenv("FIVE_DOLLAR_KEY")
     if not api_key or not SessionLocal: return {"erreur": "Configuration manquante"}
     
     db = SessionLocal()
     try:
-        # On regarde les matchs d'hier
-        hier = datetime.now() - timedelta(days=1)
-        debut_hier = hier.replace(hour=0, minute=0, second=0, microsecond=0)
-        fin_hier = debut_hier + timedelta(days=1)
+        # Date cible (par défaut hier, ou il y a X jours)
+        target_date = datetime.now() - timedelta(days=days_ago)
+        debut = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        fin = debut + timedelta(days=1)
         
-        start_ts = int(debut_hier.timestamp())
-        end_ts = int(fin_hier.timestamp())
+        start_ts = int(debut.timestamp())
+        end_ts = int(fin.timestamp())
         
-        # 1. On récupère la liste des matchs d'hier
         url_matchs = f"https://api.5dollarfootballapi.com/v1/fixtures?start_time={start_ts}&end_time={end_ts}"
         headers = {"Authorization": f"Bearer {api_key}"}
         
@@ -1498,6 +1497,9 @@ async def sync_stats_today():
         data = response.json()
         matchs_api = data.get("data", [])
         
+        if not matchs_api:
+            return {"message": f"Aucun match trouvé dans l'API pour il y a {days_ago} jour(s)."}
+
         total_stats_ajoutees = 0
 
         for m in matchs_api:
@@ -1506,17 +1508,41 @@ async def sync_stats_today():
                 
             id_match_api = m["id"]
             
-            # On vérifie si le match est dans notre base
+            # 1. On cherche le match ou on le crée s'il n'existe pas
             match_local = db.query(Match).filter(Match.id_source_apifootball == id_match_api).first()
+            
             if not match_local:
-                continue
+                nom_ligue_api = m["league"]["name"].lower()
+                competition_locale = None
+                for comp in db.query(Competition).all():
+                    if comp.nom.lower() in nom_ligue_api:
+                        competition_locale = comp
+                        break
                 
-            # On vérifie si on a déjà les stats
+                if not competition_locale:
+                    continue # On ignore si on ne connait pas la compétition
+                    
+                date_str = m["kickoff_utc"].replace("Z", "+00:00")
+                match_local = Match(
+                    competition_id=competition_locale.id,
+                    date_heure=datetime.fromisoformat(date_str),
+                    equipe_domicile=m["teams"]["home"]["name"],
+                    equipe_exterieur=m["teams"]["away"]["name"],
+                    statut="finished",
+                    id_source_apifootball=id_match_api,
+                    score_domicile=m.get("goals", {}).get("home"),
+                    score_exterieur=m.get("goals", {}).get("away")
+                )
+                db.add(match_local)
+                db.commit()
+                db.refresh(match_local)
+                
+            # 2. On vérifie si on a déjà les stats
             deja_stats = db.query(MatchStat).filter(MatchStat.match_id == match_local.id).first()
             if deja_stats:
                 continue
             
-            # 2. On appelle la route des stats
+            # 3. On appelle l'API pour les stats
             url_stats = f"https://api.5dollarfootballapi.com/v1/fixtures/{id_match_api}/statistics"
             async with httpx.AsyncClient() as client:
                 res_stats = await client.get(url_stats, headers=headers)
@@ -1527,21 +1553,17 @@ async def sync_stats_today():
                 
                 if not stats: continue
 
-                # 3. EXTRACTION DES NOUVELLES STATS (Tirs et Attaques)
                 tirs_cadres_dom = stats.get("shots_on_target", {}).get("home", 0) or 0
                 tirs_cadres_ext = stats.get("shots_on_target", {}).get("away", 0) or 0
-                
                 tirs_hors_dom = stats.get("shots_off_target", {}).get("home", 0) or 0
                 tirs_hors_ext = stats.get("shots_off_target", {}).get("away", 0) or 0
                 
-                # Total des tirs = tirs cadrés + tirs non cadrés
                 total_tirs_dom = tirs_cadres_dom + tirs_hors_dom
                 total_tirs_ext = tirs_cadres_ext + tirs_hors_ext
                 
                 attaques_dang_dom = stats.get("dangerous_attacks", {}).get("home", 0) or 0
                 attaques_dang_ext = stats.get("dangerous_attacks", {}).get("away", 0) or 0
 
-                # On garde aussi les corners/cartons au cas où l'API les donnerait pour d'autres matchs
                 corners_dom = stats.get("corners", {}).get("home", 0) or 0
                 corners_ext = stats.get("corners", {}).get("away", 0) or 0
                 jaunes_dom = stats.get("yellow_cards", {}).get("home", 0) or 0
@@ -1566,7 +1588,7 @@ async def sync_stats_today():
                 total_stats_ajoutees += 1
         
         db.commit()
-        return {"message": f"Succès ! {total_stats_ajoutees} fiches de statistiques ajoutées (Tirs & Attaques)."}
+        return {"message": f"Succès ! {total_stats_ajoutees} fiches ajoutées pour il y a {days_ago} jour(s). (Matchs analysés: {len(matchs_api)})"}
     except Exception as e:
         db.rollback()
         return {"erreur": str(e)}
