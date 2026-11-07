@@ -1430,18 +1430,14 @@ async def sync_today():
 async def test_5dollar():
     api_key = os.getenv("FIVE_DOLLAR_KEY")
     if not api_key:
-        return {"erreur": "Clé 5Dollar introuvable dans le coffre-fort"}
+        return {"erreur": "Clé 5Dollar introuvable"}
     
-    # On demande les matchs du jour (7 novembre 2026)
     date_test = datetime.now().strftime("%Y-%m-%d")
+    # Le bon endpoint est /v1/fixtures
+    url = f"https://api.5dollarfootballapi.com/v1/fixtures?date={date_test}"
     
-    # L'URL de l'API 5Dollar (endpoint matches/fixtures)
-    url = f"https://api.5dollarfootballapi.com/v1/matches?date={date_test}"
-    
-    # On essaie plusieurs formats d'authentification courants
     headers = {
-        "Authorization": f"Bearer {api_key}",
-        "x-api-key": api_key
+        "Authorization": f"Bearer {api_key}"
     }
     
     try:
@@ -1449,19 +1445,16 @@ async def test_5dollar():
             response = await client.get(url, headers=headers)
             
         if response.status_code != 200:
-            return {
-                "erreur": f"L'API a répondu avec le code {response.status_code}",
-                "details": response.text[:500] # On affiche le début de l'erreur
-            }
+            return {"erreur": f"Code {response.status_code}", "details": response.text}
             
         data = response.json()
         
-        # On renvoie juste un extrait pour voir la structure
+        # On renvoie un extrait pour voir la structure
         return {
             "status": "Succès !",
             "date_demandee": date_test,
-            "nombre_de_matchs": len(data) if isinstance(data, list) else "Format inconnu",
-            "extrait_des_donnees": data[:2] if isinstance(data, list) else data
+            "nombre_de_matchs": len(data.get("data", [])),
+            "extrait": data.get("data", [])[:2] # Les 2 premiers matchs
         }
     except Exception as e:
         return {"erreur": str(e)}
