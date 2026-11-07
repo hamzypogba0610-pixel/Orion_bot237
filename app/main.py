@@ -1732,3 +1732,111 @@ async def predict_shots(match_id_local: int, cote: float = 1.85):
         return {"erreur": str(e)}
     finally:
         db.close()
+
+@app.get("/predict-shots-target/{match_id_local}")
+async def predict_shots_target(match_id_local: int, cote: float = 1.85):
+    if not SessionLocal: return {"erreur": "Pas de BDD"}
+    db = SessionLocal()
+    try:
+        match = db.query(Match).filter(Match.id == match_id_local).first()
+        if not match: return {"erreur": "Match introuvable."}
+
+        # 1. Moyenne du championnat (Tirs Cadrés)
+        tous_les_matchs = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.competition_id == match.competition_id).all()
+        total_champ, nb_champ = 0, 0
+        for stat, m in tous_les_matchs:
+            if stat.tirs_cadres_domicile is not None and stat.tirs_cadres_exterieur is not None:
+                total_champ += (stat.tirs_cadres_domicile + stat.tirs_cadres_exterieur)
+                nb_champ += 1
+        moy_championnat = (total_champ / nb_champ) if nb_champ > 0 else 9.0 # Moyenne par défaut
+
+        # 2. Historiques
+        stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.equipe_domicile == match.equipe_domicile).all()
+        hist_dom = []
+        total_dom, nb_dom = 0, 0
+        for stat, m in stats_dom:
+            if stat.tirs_cadres_domicile is not None:
+                hist_dom.append({"corners": stat.tirs_cadres_domicile, "date": m.date_heure})
+                total_dom += stat.tirs_cadres_domicile
+                nb_dom += 1
+        
+        stats_ext = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter(Match.equipe_exterieur == match.equipe_exterieur).all()
+        hist_ext = []
+        total_ext, nb_ext = 0, 0
+        for stat, m in stats_ext:
+            if stat.tirs_cadres_exterieur is not None:
+                hist_ext.append({"corners": stat.tirs_cadres_exterieur, "date": m.date_heure})
+                total_ext += stat.tirs_cadres_exterieur
+                nb_ext += 1
+
+        # 3. Calcul des Lambdas
+        lambda_dc_total = (calc_lambda_dixon_coles(hist_dom) if nb_dom > 0 else moy_championnat / 2) + (calc_lambda_dixon_coles(hist_ext) if nb_ext > 0 else moy_championnat / 2)
+        lambda_bayes_total = calc_lambda_bayesien(total_dom, nb_dom, moy_championnat) + calc_lambda_bayesien(total_ext, nb_ext, moy_championnat)
+        lambda_simple_total = ((total_dom / nb_dom) if nb_dom > 0 else moy_championnat / 2) + ((total_ext / nb_ext) if nb_ext > 0 else moy_championnat / 2)
+
+        liste_dom = [h['corners'] for h in hist_dom]
+        liste_ext = [h['corners'] for h in hist_ext]
+        
+        impact_hawkes_total = (calc_hawkes_impact(liste_dom) + calc_hawkes_impact(liste_ext)) / 2
+        lambda_hawkes_total = lambda_simple_total * impact_hawkes_total
+
+        lambda_kalman_total = (calc_kalman_filter(liste_dom) if nb_dom > 0 else moy_championnat / 2) + (calc_kalman_filter(liste_ext) if nb_ext > 0 else moy_championnat / 2)
+
+        impact_markov_dom = calc_markov_impact(liste_dom)
+        impact_markov_ext = calc_markov_impact(liste_ext)
+        lambda_markov_total = (((total_dom / nb_dom) if nb_dom > 0 else moy_championnat / 2) * impact_markov_dom + ((total_ext / nb_ext) if nb_ext > 0 else moy_championnat / 2) * impact_markov_ext)
+
+        # Innovations
+        ligne = 8.5 # Ligne classique pour les tirs cadrés
+        
+        p_zip = calc_zero_inflated_poisson(lambda_simple_total, ligne, zero_prob=0.05)
+        
+        etat = calc_viterbi_state(minute=45, score_dom=0, score_ext=0)
+        lambda_mmpp = calc_mmpp(lambda_simple_total, etat)
+        p_mmpp = calc_poisson(lambda_mmpp, ligne)
+
+        recent = liste_dom[-3:] + liste_ext[-3:] 
+        p_par, _ = calc_live_par(recent, temps_restant=10, ligne=2.5)
+
+        mult_ham_dom, _ = calc_hamilton_regime(liste_dom)
+        mult_ham_ext, _ = calc_hamilton_regime(liste_ext)
+        lambda_hamilton = ((total_dom / nb_dom) * mult_ham_dom + (total_ext / nb_ext) * mult_ham_ext) if nb_dom > 0 and nb_ext > 0 else lambda_simple_total
+        p_hamilton = calc_poisson(lambda_hamilton, ligne)
+
+        hurst_val, _ = calc_hurst_exponent(liste_dom + liste_ext)
+        p_hurst = calc_poisson(lambda_simple_total * (1 + (hurst_val - 0.5)), ligne)
+
+        # Modèles de base
+        p_poisson = calc_poisson(lambda_simple_total, ligne)
+        p_nbinom = calc_binomiale_negative(lambda_simple_total, ligne)
+        p_mc = calc_monte_carlo(lambda_simple_total, ligne)
+        p_dc = calc_poisson(lambda_dc_total, ligne)
+        p_bayes = calc_poisson(lambda_bayes_total, ligne)
+        p_hawkes = calc_poisson(lambda_hawkes_total, ligne)
+        p_kalman = calc_poisson(lambda_kalman_total, ligne)
+        p_markov = calc_poisson(lambda_markov_total, ligne)
+
+        # Ensemble final (13 modèles)
+        liste_probas = [p_poisson, p_nbinom, p_mc, p_dc, p_bayes, p_hawkes, p_kalman, p_markov, p_zip, p_mmpp, p_par, p_hamilton, p_hurst]
+        poids = [1]*8 + [1.5]*5
+        moyenne_ensemble = np.average(liste_probas, weights=poids)
+        ecart_type = np.std(liste_probas)
+
+        modeles_proches = sum(1 for p in liste_probas if abs(p - moyenne_ensemble) <= 10)
+        if modeles_proches >= 10: fiabilite = "HAUTE ✅"
+        elif modeles_proches >= 7: fiabilite = "MOYENNE ⚠️"
+        else: fiabilite = "FAIBLE ❌ (Divergence)"
+
+        shadow_result = calc_shadow_market(moyenne_ensemble, cote)
+
+        return {
+            "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
+            "marche": "Tirs Cadrés (+8.5)",
+            "ensemble_final": round(moyenne_ensemble, 2),
+            "fiabilite": fiabilite,
+            "shadow_market": shadow_result
+        }
+    except Exception as e:
+        return {"erreur": str(e)}
+    finally:
+        db.close()
