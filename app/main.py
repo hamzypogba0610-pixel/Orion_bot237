@@ -1432,9 +1432,14 @@ async def test_5dollar():
     if not api_key:
         return {"erreur": "Clé 5Dollar introuvable"}
     
-    date_test = datetime.now().strftime("%Y-%m-%d")
-    # Le bon endpoint est /v1/fixtures
-    url = f"https://api.5dollarfootballapi.com/v1/fixtures?date={date_test}"
+    # On calcule les timestamps Unix pour aujourd'hui (00:00 UTC) et demain (00:00 UTC)
+    aujourd_hui = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    demain = aujourd_hui + timedelta(days=1)
+    
+    start_ts = int(aujourd_hui.timestamp())
+    end_ts = int(demain.timestamp())
+    
+    url = f"https://api.5dollarfootballapi.com/v1/fixtures?start_time={start_ts}&end_time={end_ts}"
     
     headers = {
         "Authorization": f"Bearer {api_key}"
@@ -1449,12 +1454,12 @@ async def test_5dollar():
             
         data = response.json()
         
-        # On renvoie un extrait pour voir la structure
         return {
             "status": "Succès !",
-            "date_demandee": date_test,
+            "start_ts": start_ts,
+            "end_ts": end_ts,
             "nombre_de_matchs": len(data.get("data", [])),
-            "extrait": data.get("data", [])[:2] # Les 2 premiers matchs
+            "extrait": data.get("data", [])[:2]
         }
     except Exception as e:
         return {"erreur": str(e)}
