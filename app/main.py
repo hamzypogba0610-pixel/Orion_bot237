@@ -516,60 +516,65 @@ async def import_csv(url: str):
         return {"erreur": str(e)}
     finally:
         db.close()
+
 @app.get("/sync-today")
 async def sync_today():
-    api_key = os.getenv("API_FOOTBALL_KEY")
+    api_key = os.getenv("FIVE_DOLLAR_KEY")
     if not api_key or not SessionLocal: return {"erreur": "Configuration manquante"}
     
     db = SessionLocal()
     try:
-        # On demande les matchs d'aujourd'hui ET de demain (pour éviter le décalage horaire)
-        aujourd_hui = datetime.now().strftime("%Y-%m-%d")
-        demain = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        # Calcul des timestamps pour aujourd'hui et demain
+        aujourd_hui = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        demain = aujourd_hui + timedelta(days=1)
+        start_ts = int(aujourd_hui.timestamp())
+        end_ts = int(demain.timestamp())
         
+        url = f"https://api.5dollarfootballapi.com/v1/fixtures?start_time={start_ts}&end_time={end_ts}"
+        headers = {"Authorization": f"Bearer {api_key}"}
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers)
+            
+        if response.status_code != 200:
+            return {"erreur": f"Erreur API : {response.status_code}"}
+            
+        data = response.json()
+        matchs_api = data.get("data", [])
+        
+        if not matchs_api: return {"message": "Aucun match trouvé aujourd'hui par l'API."}
+
         total_matchs_ajoutes = 0
 
-        for date_recherche in [aujourd_hui, demain]:
-            url = f"https://v3.football.api-sports.io/fixtures?date={date_recherche}"
-            headers = {"x-apisports-key": api_key}
+        for m in matchs_api:
+            # On récupère l'ID de la ligue locale en fonction du nom
+            nom_ligue_api = m["league"]["name"]
+            competition_locale = db.query(Competition).filter(Competition.nom.ilike(f"%{nom_ligue_api}%")).first()
             
-            async with httpx.AsyncClient() as client:
-                response = await client.get(url, headers=headers)
-            data = response.json()
-            
-            if data.get("results", 0) == 0: continue
-
-            # Toutes nos ligues (les 15)
-            top_leagues = [39, 140, 135, 61, 78, 88, 94, 144, 203, 197, 2, 3, 71, 307, 253]
-
-            for m in data["response"]:
-                id_ligue = m["league"]["id"]
-                if id_ligue not in top_leagues: continue
-
-                id_match_api = m["fixture"]["id"]
-                competition_locale = db.query(Competition).filter(Competition.id_source == id_ligue).first()
+            if competition_locale:
+                id_match_api = m["id"]
                 
-                if competition_locale:
-                    match_local = db.query(Match).filter(Match.id_source_apifootball == id_match_api).first()
-                    if not match_local:
-                        date_str = m["fixture"]["date"].replace("Z", "+00:00")
-                        nouveau_match = Match(
-                            competition_id=competition_locale.id,
-                            date_heure=datetime.fromisoformat(date_str),
-                            equipe_domicile=m["teams"]["home"]["name"],
-                            equipe_exterieur=m["teams"]["away"]["name"],
-                            statut=m["fixture"]["status"]["short"],
-                            id_source_apifootball=id_match_api,
-                            score_domicile=m["goals"]["home"],
-                            score_exterieur=m["goals"]["away"],
-                            logo_domicile=m["teams"]["home"]["logo"],
-                            logo_exterieur=m["teams"]["away"]["logo"]
-                        )
-                        db.add(nouveau_match)
-                        total_matchs_ajoutes += 1
+                # Vérification anti-doublon
+                match_local = db.query(Match).filter(Match.id_source_apifootball == id_match_api).first()
+                if not match_local:
+                    # On convertit la date UTC en objet datetime
+                    date_str = m["kickoff_utc"].replace("Z", "+00:00")
+                    
+                    nouveau_match = Match(
+                        competition_id=competition_locale.id,
+                        date_heure=datetime.fromisoformat(date_str),
+                        equipe_domicile=m["teams"]["home"]["name"],
+                        equipe_exterieur=m["teams"]["away"]["name"],
+                        statut=m.get("status", "NS"), # NS = Not Started par défaut
+                        id_source_apifootball=id_match_api,
+                        score_domicile=m.get("goals", {}).get("home"),
+                        score_exterieur=m.get("goals", {}).get("away")
+                    )
+                    db.add(nouveau_match)
+                    total_matchs_ajoutes += 1
         
         db.commit()
-        return {"message": f"Succès ! {total_matchs_ajoutes} matchs (aujourd'hui + demain) ont été ajoutés."}
+        return {"message": f"Succès ! {total_matchs_ajoutes} matchs ajoutés depuis la nouvelle API."}
     except Exception as e:
         db.rollback()
         return {"erreur": str(e)}
