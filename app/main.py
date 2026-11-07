@@ -1553,14 +1553,27 @@ async def test_stats_5dollar(match_id_api: int):
     api_key = os.getenv("FIVE_DOLLAR_KEY")
     if not api_key: return {"erreur": "Clé manquante"}
     
-    # On teste l'endpoint classique pour les statistiques d'un match
-    url = f"https://api.5dollarfootballapi.com/v1/fixtures/statistics?fixture_id={match_id_api}"
     headers = {"Authorization": f"Bearer {api_key}"}
     
+    # Méthode 1 : On essaie avec ?id= au lieu de ?fixture_id=
+    url1 = f"https://api.5dollarfootballapi.com/v1/fixtures/statistics?id={match_id_api}"
     async with httpx.AsyncClient() as client:
-        response = await client.get(url, headers=headers)
+        res1 = await client.get(url1, headers=headers)
         
-    if response.status_code != 200:
-        return {"erreur": f"Code {response.status_code}", "details": response.text}
+    if res1.status_code == 200:
+        return {"methode": "?id=", "data": res1.json()}
         
-    return response.json()
+    # Méthode 2 : On essaie avec l'ID directement dans l'URL (ex: /fixtures/123/statistics)
+    url2 = f"https://api.5dollarfootballapi.com/v1/fixtures/{match_id_api}/statistics"
+    async with httpx.AsyncClient() as client:
+        res2 = await client.get(url2, headers=headers)
+        
+    if res2.status_code == 200:
+        return {"methode": "/{id}/statistics", "data": res2.json()}
+        
+    # Si aucune ne marche, on renvoie les deux erreurs pour voir
+    return {
+        "erreur": "Les deux méthodes ont échoué",
+        "erreur_methode_1": res1.text,
+        "erreur_methode_2": res2.text
+        }
