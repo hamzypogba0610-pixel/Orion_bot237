@@ -517,14 +517,13 @@ async def import_csv(url: str):
     finally:
         db.close()
 
-@app.get("/sync-today")
+ @app.get("/sync-today")
 async def sync_today():
     api_key = os.getenv("FIVE_DOLLAR_KEY")
     if not api_key or not SessionLocal: return {"erreur": "Configuration manquante"}
     
     db = SessionLocal()
     try:
-        # Calcul des timestamps pour aujourd'hui et demain
         aujourd_hui = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         demain = aujourd_hui + timedelta(days=1)
         start_ts = int(aujourd_hui.timestamp())
@@ -542,22 +541,26 @@ async def sync_today():
         data = response.json()
         matchs_api = data.get("data", [])
         
-        if not matchs_api: return {"message": "Aucun match trouvé aujourd'hui par l'API."}
+        if not matchs_api: return {"message": "Aucun match trouvé aujourd'hui."}
 
         total_matchs_ajoutes = 0
 
         for m in matchs_api:
-            # On récupère l'ID de la ligue locale en fonction du nom
-            nom_ligue_api = m["league"]["name"]
-            competition_locale = db.query(Competition).filter(Competition.nom.ilike(f"%{nom_ligue_api}%")).first()
+            nom_ligue_api = m["league"]["name"].lower()
+            
+            # On cherche la compétition locale en comparant les noms de manière plus souple
+            competition_locale = None
+            for comp in db.query(Competition).all():
+                if comp.nom.lower() in nom_ligue_api:
+                    competition_locale = comp
+                    break
             
             if competition_locale:
                 id_match_api = m["id"]
                 
-                # Vérification anti-doublon
                 match_local = db.query(Match).filter(Match.id_source_apifootball == id_match_api).first()
                 if not match_local:
-                    # On convertit la date UTC en objet datetime
+                    # Formatage de la date
                     date_str = m["kickoff_utc"].replace("Z", "+00:00")
                     
                     nouveau_match = Match(
@@ -565,7 +568,7 @@ async def sync_today():
                         date_heure=datetime.fromisoformat(date_str),
                         equipe_domicile=m["teams"]["home"]["name"],
                         equipe_exterieur=m["teams"]["away"]["name"],
-                        statut=m.get("status", "NS"), # NS = Not Started par défaut
+                        statut="NS", # Not Started
                         id_source_apifootball=id_match_api,
                         score_domicile=m.get("goals", {}).get("home"),
                         score_exterieur=m.get("goals", {}).get("away")
