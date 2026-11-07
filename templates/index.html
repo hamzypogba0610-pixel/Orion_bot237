@@ -438,29 +438,31 @@
     }
         }
 
-                async function validerResultat(predictionId) {
-            const input = document.getElementById(`res_${predictionId}`);
-            const valeur = parseFloat(input.value);
-            
-            if (isNaN(valeur)) { 
-                alert("Veuillez entrer un nombre valide."); 
-                return; 
-            }
-            
-            try {
-                const response = await fetch(`/ajouter-resultat/${predictionId}?resultat_reel=${valeur}`, { method: 'POST' });
-                const result = await response.json();
-                
-                if (result.erreur) {
-                    alert("❌ Erreur : " + result.erreur);
-                } else {
-                    alert(result.message ? "✅ " + result.message : "✅ Résultat enregistré avec succès !");
-                }
-                await chargerHistorique();
-            } catch (e) { 
-                alert("Erreur de connexion avec le serveur."); 
-            }
+          async function validerResultat(predictionId) {
+    const input = document.getElementById(`res_${predictionId}`);
+    const valeur = parseFloat(input.value);
+    
+    if (isNaN(valeur)) { 
+        alert("Veuillez entrer un nombre valide."); 
+        return; 
+    }
+    
+    try {
+        const response = await fetch(`/ajouter-resultat/${predictionId}?resultat_reel=${valeur}`, { method: 'POST' });
+        const result = await response.json();
+        
+        if (result.erreur) {
+            alert("❌ Erreur : " + result.erreur);
+        } else {
+            // Si le serveur renvoie un message, on l'affiche, sinon on met un message par défaut
+            let messageAffiche = result.message ? result.message : "Résultat enregistré avec succès !";
+            alert("✅ " + messageAffiche);
         }
+        await chargerHistorique(); // On rafraichit la liste
+    } catch (e) { 
+        alert("Erreur de connexion avec le serveur."); 
+    }
+        }      
     </script>
 </body>
 </html>
