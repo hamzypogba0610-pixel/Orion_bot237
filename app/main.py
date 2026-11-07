@@ -1547,3 +1547,20 @@ async def sync_stats_today():
         return {"erreur": str(e)}
     finally:
         db.close()
+
+@app.get("/test-stats-5dollar/{match_id_api}")
+async def test_stats_5dollar(match_id_api: int):
+    api_key = os.getenv("FIVE_DOLLAR_KEY")
+    if not api_key: return {"erreur": "Clé manquante"}
+    
+    # On teste l'endpoint classique pour les statistiques d'un match
+    url = f"https://api.5dollarfootballapi.com/v1/fixtures/statistics?fixture_id={match_id_api}"
+    headers = {"Authorization": f"Bearer {api_key}"}
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers)
+        
+    if response.status_code != 200:
+        return {"erreur": f"Code {response.status_code}", "details": response.text}
+        
+    return response.json()
