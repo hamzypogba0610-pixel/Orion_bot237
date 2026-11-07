@@ -517,7 +517,7 @@ async def import_csv(url: str):
     finally:
         db.close()
 
- @app.get("/sync-today")
+@app.get("/sync-today")
 async def sync_today():
     api_key = os.getenv("FIVE_DOLLAR_KEY")
     if not api_key or not SessionLocal: return {"erreur": "Configuration manquante"}
@@ -548,7 +548,6 @@ async def sync_today():
         for m in matchs_api:
             nom_ligue_api = m["league"]["name"].lower()
             
-            # On cherche la compétition locale en comparant les noms de manière plus souple
             competition_locale = None
             for comp in db.query(Competition).all():
                 if comp.nom.lower() in nom_ligue_api:
@@ -560,7 +559,6 @@ async def sync_today():
                 
                 match_local = db.query(Match).filter(Match.id_source_apifootball == id_match_api).first()
                 if not match_local:
-                    # Formatage de la date
                     date_str = m["kickoff_utc"].replace("Z", "+00:00")
                     
                     nouveau_match = Match(
@@ -568,7 +566,7 @@ async def sync_today():
                         date_heure=datetime.fromisoformat(date_str),
                         equipe_domicile=m["teams"]["home"]["name"],
                         equipe_exterieur=m["teams"]["away"]["name"],
-                        statut="NS", # Not Started
+                        statut="NS",
                         id_source_apifootball=id_match_api,
                         score_domicile=m.get("goals", {}).get("home"),
                         score_exterieur=m.get("goals", {}).get("away")
@@ -582,7 +580,7 @@ async def sync_today():
         db.rollback()
         return {"erreur": str(e)}
     finally:
-        db.close()
+        db.close() 
 
 @app.get("/predict-ft-score/{match_id_local}")
 async def predict_ft_score(match_id_local: int):
