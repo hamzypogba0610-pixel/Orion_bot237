@@ -771,7 +771,7 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
         # Hamilton
         mult_ham_dom, _ = calc_hamilton_regime(liste_corners_dom)
         mult_ham_ext, _ = calc_hamilton_regime(liste_corners_ext)
-        lambda_hamilton = ((total_corners_dom / nb_dom) * mult_ham_dom + (total_corners_ext / nb_ext) * mult_ham_ext) * impact_meteo
+        lambda_hamilton = (((total_corners_dom / nb_dom) if nb_dom > 0 else moy_championnat / 2) * mult_ham_dom + ((total_corners_ext / nb_ext) if nb_ext > 0 else moy_championnat / 2) * mult_ham_ext) * impact_meteo
         p_hamilton = calc_poisson(lambda_hamilton, ligne)
         # Hurst
         hurst_val, _ = calc_hurst_exponent(liste_corners_dom + liste_corners_ext)
