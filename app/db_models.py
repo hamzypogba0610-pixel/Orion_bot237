@@ -36,6 +36,12 @@ class MatchStat(Base):
     cartons_jaunes_exterieur = Column(Integer, nullable=True)
     cartons_rouges_domicile = Column(Integer, nullable=True)
     cartons_rouges_exterieur = Column(Integer, nullable=True)
+    tirs_domicile = Column(Integer, nullable=True)
+    tirs_exterieur = Column(Integer, nullable=True)
+    tirs_cadres_domicile = Column(Integer, nullable=True)
+    tirs_cadres_exterieur = Column(Integer, nullable=True)
+    attaques_dangereuses_domicile = Column(Integer, nullable=True)
+    attaques_dangereuses_exterieur = Column(Integer, nullable=True)
     statut_validation = Column(String, default="manquant")
     date_recuperation = Column(DateTime, default=datetime.utcnow)
 
