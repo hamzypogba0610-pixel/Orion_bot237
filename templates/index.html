@@ -60,129 +60,149 @@
             <h1>⚽ ORION</h1>
             <p>Football Analytics Engine</p>
         </div>
-            <div id="page-analyse" class="page active">
-        <div class="card" style="border: 2px solid var(--accent); background: linear-gradient(135deg, #1e293b, #0f172a);">
-            <h3 style="color: var(--accent); margin-bottom: 10px; text-align: center;">🛰️ ORION Radar</h3>
-            <p style="font-size: 12px; color: var(--text-muted); text-align: center; margin-bottom: 15px;">Laisse l'IA scanner les matchs.</p>
-            <button onclick="lancerScanner()" id="btnScan" style="background-color: var(--accent);">🚀 Scanner le Top 3</button>
-            <div id="scanResultats" style="display: none; margin-top: 15px;"></div>
-        </div>
 
-        <div class="card">
-            <div class="input-group">
-                <button onclick="actualiserMatchs()" id="btnSync" style="background-color: var(--blue); margin-bottom: 10px;">🔄 Actualiser les matchs du jour</button>
-                <div>
-                    <label>Sélectionner un match</label>
-                    <select id="matchId"><option value="">Chargement...</option></select>
-                </div>
-                <button onclick="analyserMatch()">🧠 Analyser le match (Pre-match)</button>
-                <button onclick="toggleLiveForm()" id="btnToggleLive" style="background-color: transparent; border: 1px solid var(--danger); color: var(--danger); margin-top: 10px;">🔴 Mode Live Betting</button>
+        <div id="page-analyse" class="page active">
+    
+    <!-- RADAR -->
+    <div class="card" style="border: 2px solid var(--accent); background: linear-gradient(135deg, #1e293b, #0f172a);">
+        <h3 style="color: var(--accent); margin-bottom: 10px; text-align: center;">🛰️ ORION Radar</h3>
+        <p style="font-size: 12px; color: var(--text-muted); text-align: center; margin-bottom: 15px;">Laisse l'IA scanner les matchs.</p>
+        <button onclick="lancerScanner()" id="btnScan" style="background-color: var(--accent);">🚀 Scanner le Top 3</button>
+        <div id="scanResultats" style="display: none; margin-top: 15px;"></div>
+    </div>
+
+    <!-- FORMULAIRE D'ANALYSE -->
+    <div class="card">
+        <div class="input-group">
+            <button onclick="actualiserMatchs()" id="btnSync" style="background-color: var(--blue); margin-bottom: 10px;">🔄 Actualiser les matchs du jour</button>
+            <div>
+                <label>Sélectionner un match</label>
+                <select id="matchId"><option value="">Chargement...</option></select>
+            </div>
+            <button onclick="analyserMatch()">🧠 Analyser le match (Pre-match)</button>
+            
+            <button onclick="toggleLiveForm()" id="btnToggleLive" style="background-color: transparent; border: 1px solid var(--danger); color: var(--danger); margin-top: 10px;">🔴 Mode Live Betting</button>
+            
+            <div id="liveForm" style="display: none; background: var(--bg-dark); padding: 15px; border-radius: 8px; border: 1px solid var(--danger); margin-top: 15px;">
+                <h4 style="color: var(--danger); margin-bottom: 10px;">🔴 Analyse en Direct</h4>
                 
-                <div id="liveForm" style="display: none; background: var(--bg-dark); padding: 15px; border-radius: 8px; border: 1px solid var(--danger); margin-top: 15px;">
-                    <h4 style="color: var(--danger); margin-bottom: 10px;">🔴 Analyse en Direct</h4>
-                    <p style="font-size:12px; color:var(--text-muted); margin-bottom:5px;">Corners Live</p>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                        <div><label>Minute</label><input type="number" id="liveMinute" value="60"></div>
-                        <div><label>Ligne</label><input type="number" step="0.5" id="liveLigne" value="9.5"></div>
-                        <div><label>C. Dom</label><input type="number" id="liveCornersDom" value="3"></div>
-                        <div><label>C. Ext</label><input type="number" id="liveCornersExt" value="2"></div>
-                        <div><label>S. Dom</label><input type="number" id="liveScoreDom" value="1"></div>
-                        <div><label>S. Ext</label><input type="number" id="liveScoreExt" value="0"></div>
-                    </div>
-                    <div style="margin-top: 10px;"><label>Cote (Corners)</label><input type="number" step="0.01" id="liveCote" value="2.10"></div>
-                    <button onclick="analyserLive()" style="background-color: var(--danger); margin-top: 15px; margin-bottom: 20px;">⚡ Value Corners</button>
-
-                    <hr style="border-color: var(--border); margin-bottom: 15px;">
-                    <p style="font-size:12px; color:var(--text-muted); margin-bottom:5px;">Score Exact Live</p>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                        <div><label>Minute</label><input type="number" id="lsMinute" value="70"></div>
-                        <div><label>Score pari</label><input type="text" id="lsScorePari" value="2-1"></div>
-                        <div><label>S. Dom</label><input type="number" id="lsScoreDom" value="1"></div>
-                        <div><label>S. Ext</label><input type="number" id="lsScoreExt" value="1"></div>
-                    </div>
-                    <div style="margin-top: 10px;"><label>Cote (Score)</label><input type="number" step="0.01" id="lsCote" value="8.50"></div>
-                    <button onclick="analyserLiveScore()" style="background-color: var(--blue); margin-top: 15px; margin-bottom: 20px;">⚡ Value Score</button>
-
-                    <hr style="border-color: var(--border); margin-bottom: 15px;">
-                    <p style="font-size:12px; color:var(--text-muted); margin-bottom:5px;">Cartons Live</p>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                        <div><label>Minute</label><input type="number" id="lcMinute" value="70"></div>
-                        <div><label>Ligne</label><input type="number" step="0.5" id="lcLigne" value="4.5"></div>
-                        <div><label>Cartons D.</label><input type="number" id="lcCartonsDom" value="2"></div>
-                        <div><label>Cartons E.</label><input type="number" id="lcCartonsExt" value="1"></div>
-                        <div><label>S. Dom</label><input type="number" id="lcScoreDom" value="1"></div>
-                        <div><label>S. Ext</label><input type="number" id="lcScoreExt" value="1"></div>
-                    </div>
-                    <div style="margin-top: 10px;"><label>Cote (Cartons)</label><input type="number" step="0.01" id="lcCote" value="1.90"></div>
-                    <button onclick="analyserLiveCards()" style="background-color: #f59e0b; color: #000; margin-top: 15px;">⚡ Value Cartons</button>
+                <p style="font-size:12px; color:var(--text-muted); margin-bottom:5px;">Corners Live</p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div><label>Minute</label><input type="number" id="liveMinute" value="60"></div>
+                    <div><label>Ligne</label><input type="number" step="0.5" id="liveLigne" value="9.5"></div>
+                    <div><label>C. Dom</label><input type="number" id="liveCornersDom" value="3"></div>
+                    <div><label>C. Ext</label><input type="number" id="liveCornersExt" value="2"></div>
+                    <div><label>S. Dom</label><input type="number" id="liveScoreDom" value="1"></div>
+                    <div><label>S. Ext</label><input type="number" id="liveScoreExt" value="0"></div>
                 </div>
+                <div style="margin-top: 10px;"><label>Cote (Corners)</label><input type="number" step="0.01" id="liveCote" value="2.10"></div>
+                <button onclick="analyserLive()" style="background-color: var(--danger); margin-top: 15px; margin-bottom: 20px;">⚡ Value Corners</button>
+
+                <hr style="border-color: var(--border); margin-bottom: 15px;">
+                <p style="font-size:12px; color:var(--text-muted); margin-bottom:5px;">Score Exact Live</p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div><label>Minute</label><input type="number" id="lsMinute" value="70"></div>
+                    <div><label>Score pari</label><input type="text" id="lsScorePari" value="2-1"></div>
+                    <div><label>S. Dom</label><input type="number" id="lsScoreDom" value="1"></div>
+                    <div><label>S. Ext</label><input type="number" id="lsScoreExt" value="1"></div>
+                </div>
+                <div style="margin-top: 10px;"><label>Cote (Score)</label><input type="number" step="0.01" id="lsCote" value="8.50"></div>
+                <button onclick="analyserLiveScore()" style="background-color: var(--blue); margin-top: 15px; margin-bottom: 20px;">⚡ Value Score</button>
+
+                <hr style="border-color: var(--border); margin-bottom: 15px;">
+                <p style="font-size:12px; color:var(--text-muted); margin-bottom:5px;">Cartons Live</p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div><label>Minute</label><input type="number" id="lcMinute" value="70"></div>
+                    <div><label>Ligne</label><input type="number" step="0.5" id="lcLigne" value="4.5"></div>
+                    <div><label>Cartons D.</label><input type="number" id="lcCartonsDom" value="2"></div>
+                    <div><label>Cartons E.</label><input type="number" id="lcCartonsExt" value="1"></div>
+                    <div><label>S. Dom</label><input type="number" id="lcScoreDom" value="1"></div>
+                    <div><label>S. Ext</label><input type="number" id="lcScoreExt" value="1"></div>
+                </div>
+                <div style="margin-top: 10px;"><label>Cote (Cartons)</label><input type="number" step="0.01" id="lcCote" value="1.90"></div>
+                <button onclick="analyserLiveCards()" style="background-color: #f59e0b; color: #000; margin-top: 15px;">⚡ Value Cartons</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ZONE DES RÉSULTATS -->
+    <div id="resultats" style="display: none;">
+        <div class="match-title" id="matchTitle"></div>
+        <div id="contextInfo" style="font-size: 12px; color: var(--text-muted); text-align: center; margin-bottom: 15px; background: var(--bg-card); padding: 10px; border-radius: 8px; display: none;"></div>
+        
+        <!-- MOTEUR CORNERS -->
+        <div class="market-card" style="border: 2px solid var(--blue); background: linear-gradient(135deg, #1e293b, #0f172a);">
+            <div class="market-header"><span class="market-title" style="color: var(--blue);">🧠 Ensemble Corners</span><span class="market-total" id="ensembleFiabilite" style="background:var(--blue); color:#fff;">...</span></div>
+            <div style="text-align: center; margin-bottom: 15px;"><div style="font-size: 32px; font-weight: 800; color: var(--accent);" id="ensembleProbaFinale">--%</div><div style="font-size: 12px; color: var(--text-muted);">Probabilité +9.5 Corners</div></div>
+            <div id="shadowMarketResult" style="margin-bottom: 15px; font-size: 13px; text-align: center; font-weight: bold;"></div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
+                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Poisson: <span id="m_poisson" style="float:right; font-weight:bold;"></span></div>
+                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Nbinom: <span id="m_nbinom" style="float:right; font-weight:bold;"></span></div>
+                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">M. Carlo: <span id="m_mc" style="float:right; font-weight:bold;"></span></div>
+                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Dixon: <span id="m_dc" style="float:right; font-weight:bold;"></span></div>
+                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Bayes: <span id="m_bayes" style="float:right; font-weight:bold;"></span></div>
+                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid var(--blue);">Hawkes: <span id="m_hawkes" style="float:right; font-weight:bold; color:var(--blue);"></span></div>
+                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid #a855f7;">Kalman: <span id="m_kalman" style="float:right; font-weight:bold; color:#a855f7;"></span></div>
+                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid #ec4899;">Markov: <span id="m_markov" style="float:right; font-weight:bold; color:#ec4899;"></span></div>
             </div>
         </div>
 
-        <div id="resultats" style="display: none;">
-            <div class="match-title" id="matchTitle"></div>
-            <div id="contextInfo" style="font-size: 12px; color: var(--text-muted); text-align: center; margin-bottom: 15px; background: var(--bg-card); padding: 10px; border-radius: 8px; display: none;"></div>
-            
-            <div class="market-card" style="border: 2px solid var(--blue); background: linear-gradient(135deg, #1e293b, #0f172a);">
-                <div class="market-header"><span class="market-title" style="color: var(--blue);">🧠 Ensemble Corners</span><span class="market-total" id="ensembleFiabilite" style="background:var(--blue); color:#fff;">...</span></div>
-                <div style="text-align: center; margin-bottom: 15px;"><div style="font-size: 32px; font-weight: 800; color: var(--accent);" id="ensembleProbaFinale">--%</div><div style="font-size: 12px; color: var(--text-muted);">Probabilité +9.5 Corners</div></div>
-                <div id="shadowMarketResult" style="margin-bottom: 15px; font-size: 13px; text-align: center; font-weight: bold;"></div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
-                    <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Poisson: <span id="m_poisson" style="float:right; font-weight:bold;"></span></div>
-                    <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Nbinom: <span id="m_nbinom" style="float:right; font-weight:bold;"></span></div>
-                    <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">M. Carlo: <span id="m_mc" style="float:right; font-weight:bold;"></span></div>
-                    <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Dixon: <span id="m_dc" style="float:right; font-weight:bold;"></span></div>
-                    <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Bayes: <span id="m_bayes" style="float:right; font-weight:bold;"></span></div>
-                    <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid var(--blue);">Hawkes: <span id="m_hawkes" style="float:right; font-weight:bold; color:var(--blue);"></span></div>
-                    <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid #a855f7;">Kalman: <span id="m_kalman" style="float:right; font-weight:bold; color:#a855f7;"></span></div>
-                    <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid #ec4899;">Markov: <span id="m_markov" style="float:right; font-weight:bold; color:#ec4899;"></span></div>
-                </div>
+        <!-- MOTEUR CARTONS -->
+        <div class="market-card" style="border: 2px solid #f59e0b; background: linear-gradient(135deg, #1e293b, #0f172a);">
+            <div class="market-header"><span class="market-title" style="color: #f59e0b;">🧠 Ensemble Cartons</span><span class="market-total" id="ensembleCardsFiabilite" style="background:#f59e0b; color:#fff;">...</span></div>
+            <div style="text-align: center; margin-bottom: 15px;"><div style="font-size: 32px; font-weight: 800; color: #f59e0b;" id="ensembleCardsProbaFinale">--%</div><div style="font-size: 12px; color: var(--text-muted);">Probabilité +4.5 Cartons</div></div>
+            <div id="shadowMarketCardsResult" style="margin-bottom: 15px; font-size: 13px; text-align: center; font-weight: bold;"></div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
+                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Poisson: <span id="c_poisson" style="float:right; font-weight:bold;"></span></div>
+                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Nbinom: <span id="c_nbinom" style="float:right; font-weight:bold;"></span></div>
+                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">M. Carlo: <span id="c_mc" style="float:right; font-weight:bold;"></span></div>
+                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Dixon: <span id="c_dc" style="float:right; font-weight:bold;"></span></div>
+                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Bayes: <span id="c_bayes" style="float:right; font-weight:bold;"></span></div>
+                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid var(--blue);">Hawkes: <span id="c_hawkes" style="float:right; font-weight:bold; color:var(--blue);"></span></div>
+                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid #a855f7;">Kalman: <span id="c_kalman" style="float:right; font-weight:bold; color:#a855f7;"></span></div>
+                <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid #ec4899;">Markov: <span id="c_markov" style="float:right; font-weight:bold; color:#ec4899;"></span></div>
             </div>
-
-            <div class="market-card" style="border: 2px solid #f59e0b; background: linear-gradient(135deg, #1e293b, #0f172a);">
-                <div class="market-header"><span class="market-title" style="color: #f59e0b;">🧠 Ensemble Cartons</span><span class="market-total" id="ensembleCardsFiabilite" style="background:#f59e0b; color:#fff;">...</span></div>
-                <div style="text-align: center; margin-bottom: 15px;"><div style="font-size: 32px; font-weight: 800; color: #f59e0b;" id="ensembleCardsProbaFinale">--%</div><div style="font-size: 12px; color: var(--text-muted);">Probabilité +4.5 Cartons</div></div>
-                <div id="shadowMarketCardsResult" style="margin-bottom: 15px; font-size: 13px; text-align: center; font-weight: bold;"></div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
-                    <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Poisson: <span id="c_poisson" style="float:right; font-weight:bold;"></span></div>
-                    <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Nbinom: <span id="c_nbinom" style="float:right; font-weight:bold;"></span></div>
-                    <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">M. Carlo: <span id="c_mc" style="float:right; font-weight:bold;"></span></div>
-                    <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Dixon: <span id="c_dc" style="float:right; font-weight:bold;"></span></div>
-                    <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px;">Bayes: <span id="c_bayes" style="float:right; font-weight:bold;"></span></div>
-                    <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid var(--blue);">Hawkes: <span id="c_hawkes" style="float:right; font-weight:bold; color:var(--blue);"></span></div>
-                    <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid #a855f7;">Kalman: <span id="c_kalman" style="float:right; font-weight:bold; color:#a855f7;"></span></div>
-                    <div style="background: var(--bg-dark); padding: 8px; border-radius: 6px; border: 1px solid #ec4899;">Markov: <span id="c_markov" style="float:right; font-weight:bold; color:#ec4899;"></span></div>
-                </div>
-            </div>
-
-            <div class="market-card"><div class="market-header"><span class="market-title">📐 Corners</span><span class="market-total" id="totalCorners"></span></div><div id="cornersProbs"></div></div>
-            <!-- CARTE CARTONS -->
-<div class="market-card">
-    <div class="market-header">
-        <span class="market-title">🟨 Cartons</span>
-        <span class="market-total" id="totalCartons"></span>
-    </div>
-    <div id="cartonsProbs"></div>
-</div>
-
-<!-- NOUVELLE CARTE : MOTEUR DE DOMINATION -->
-<div class="market-card" style="border: 2px solid #a855f7; background: linear-gradient(135deg, #1e293b, #0f172a);">
-    <div class="market-header">
-        <span class="market-title" style="color: #a855f7;">🎯 Moteur de Domination (Tirs)</span>
-        <span class="market-total" id="dominationFiabilite" style="background:#a855f7; color:#fff;">...</span>
-    </div>
-    <div style="text-align: center; margin-bottom: 15px;">
-        <div style="font-size: 32px; font-weight: 800; color: #a855f7;" id="dominationProbaFinale">--%</div>
-        <div style="font-size: 12px; color: var(--text-muted);">Probabilité +22.5 Tirs (Ensemble 13 Modèles)</div>
-    </div>
-    <div id="shadowDomination" style="margin-bottom: 15px; font-size: 13px; text-align: center; font-weight: bold;"></div>
-</div>
-            <div class="market-card" style="border: 1px solid var(--accent);"><div class="market-header"><span class="market-title">⏱️ Score HT</span><span class="market-total" style="background:var(--accent); color:#000;">Top 3</span></div><div id="htScoresProbs" style="display:flex; justify-content:space-between; text-align:center;"></div></div>
-            <div class="market-card" style="border: 1px solid var(--blue);"><div class="market-header"><span class="market-title">🏁 Score FT</span><span class="market-total" style="background:var(--blue); color:#fff;">Top 3</span></div><div id="ftScoresProbs" style="display:flex; justify-content:space-between; text-align:center;"></div></div>
-            
-            <button class="btn-save" onclick="sauvegarderPrediction()">💾 Sauvegarder cette analyse</button>
         </div>
+
+        <!-- CARTES SIMPLES -->
+        <div class="market-card">
+            <div class="market-header"><span class="market-title">📐 Corners</span><span class="market-total" id="totalCorners"></span></div>
+            <div id="cornersProbs"></div>
+        </div>
+
+        <div class="market-card">
+            <div class="market-header"><span class="market-title">🟨 Cartons</span><span class="market-total" id="totalCartons"></span></div>
+            <div id="cartonsProbs"></div>
+        </div>
+
+        <!-- MOTEUR DOMINATION (TIRS) -->
+        <div class="market-card" style="border: 2px solid #a855f7; background: linear-gradient(135deg, #1e293b, #0f172a);">
+            <div class="market-header"><span class="market-title" style="color: #a855f7;">🎯 Moteur de Domination (Tirs)</span><span class="market-total" id="dominationFiabilite" style="background:#a855f7; color:#fff;">...</span></div>
+            <div style="text-align: center; margin-bottom: 15px;"><div style="font-size: 32px; font-weight: 800; color: #a855f7;" id="dominationProbaFinale">--%</div><div style="font-size: 12px; color: var(--text-muted);">Probabilité +22.5 Tirs</div></div>
+            <div id="shadowDomination" style="margin-bottom: 15px; font-size: 13px; text-align: center; font-weight: bold;"></div>
+        </div>
+
+        <!-- MOTEUR DOMINATION (TIRS CADRÉS) -->
+        <div class="market-card" style="border: 2px solid #c084fc; background: linear-gradient(135deg, #1e293b, #0f172a);">
+            <div class="market-header"><span class="market-title" style="color: #c084fc;">🎯 Moteur Tirs Cadrés</span><span class="market-total" id="dominationTargetFiabilite" style="background:#c084fc; color:#fff;">...</span></div>
+            <div style="text-align: center; margin-bottom: 15px;"><div style="font-size: 32px; font-weight: 800; color: #c084fc;" id="dominationTargetProbaFinale">--%</div><div style="font-size: 12px; color: var(--text-muted);">Probabilité +8.5 Tirs Cadrés</div></div>
+            <div id="shadowDominationTarget" style="margin-bottom: 15px; font-size: 13px; text-align: center; font-weight: bold;"></div>
+        </div>
+
+        <!-- SCORES -->
+        <div class="market-card" style="border: 1px solid var(--accent);">
+            <div class="market-header"><span class="market-title">⏱️ Score HT</span><span class="market-total" style="background:var(--accent); color:#000;">Top 3</span></div>
+            <div id="htScoresProbs" style="display:flex; justify-content:space-between; text-align:center;"></div>
+        </div>
+
+        <div class="market-card" style="border: 1px solid var(--blue);">
+            <div class="market-header"><span class="market-title">🏁 Score FT</span><span class="market-total" style="background:var(--blue); color:#fff;">Top 3</span></div>
+            <div id="ftScoresProbs" style="display:flex; justify-content:space-between; text-align:center;"></div>
+        </div>
+        
+        <button class="btn-save" onclick="sauvegarderPrediction()">💾 Sauvegarder cette analyse</button>
     </div>
+        </div>
 
     <div id="page-historique" class="page">
         <div class="card" id="statsCalibration" style="background: linear-gradient(135deg, #1e293b, #0f172a); display: none;">
