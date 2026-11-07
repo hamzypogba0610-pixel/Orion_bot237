@@ -1469,3 +1469,81 @@ async def test_5dollar():
         }
     except Exception as e:
         return {"erreur": str(e)}
+
+@app.get("/sync-stats-today")
+async def sync_stats_today():
+    api_key = os.getenv("FIVE_DOLLAR_KEY")
+    if not api_key or not SessionLocal: return {"erreur": "Configuration manquante"}
+    
+    db = SessionLocal()
+    try:
+        # On regarde les matchs d'hier pour être sûr qu'ils sont terminés
+        hier = datetime.now() - timedelta(days=1)
+        debut_hier = hier.replace(hour=0, minute=0, second=0, microsecond=0)
+        fin_hier = debut_hier + timedelta(days=1)
+        
+        start_ts = int(debut_hier.timestamp())
+        end_ts = int(fin_hier.timestamp())
+        
+        url = f"https://api.5dollarfootballapi.com/v1/fixtures?start_time={start_ts}&end_time={end_ts}"
+        headers = {"Authorization": f"Bearer {api_key}"}
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers)
+            
+        if response.status_code != 200:
+            return {"erreur": f"Erreur API : {response.status_code}"}
+            
+        data = response.json()
+        matchs_api = data.get("data", [])
+        
+        total_stats_ajoutees = 0
+
+        for m in matchs_api:
+            # On ne traite que les matchs terminés (FT = Full Time)
+            if m.get("status") != "FT":
+                continue
+                
+            id_match_api = m["id"]
+            
+            # On vérifie si ce match est dans notre base
+            match_local = db.query(Match).filter(Match.id_source_apifootball == id_match_api).first()
+            if not match_local:
+                continue
+                
+            # On vérifie si on a déjà les stats de ce match
+            deja_stats = db.query(MatchStat).filter(MatchStat.match_id == match_local.id).first()
+            if deja_stats:
+                continue
+            
+            # --- EXTRACTION DES STATS ---
+            # (Attention : il faut vérifier la structure exacte des stats dans l'API 5Dollar)
+            # On suppose ici que l'API renvoie un objet "statistics" ou "stats" dans le match
+            stats = m.get("statistics", {})
+            
+            corners_dom = stats.get("corners", {}).get("home", 0) if stats else 0
+            corners_ext = stats.get("corners", {}).get("away", 0) if stats else 0
+            cartons_dom = stats.get("yellow_cards", {}).get("home", 0) if stats else 0
+            cartons_ext = stats.get("yellow_cards", {}).get("away", 0) if stats else 0
+            
+            nouvelle_stat = MatchStat(
+                match_id=match_local.id,
+                source_api="5dollar",
+                corners_domicile=corners_dom,
+                corners_exterieur=corners_ext,
+                cartons_jaunes_domicile=cartons_dom,
+                cartons_jaunes_exterieur=cartons_ext,
+                cartons_rouges_domicile=0, # A vérifier si l'API les donne
+                cartons_rouges_exterieur=0,
+                statut_validation="confirmé"
+            )
+            db.add(nouvelle_stat)
+            total_stats_ajoutees += 1
+        
+        db.commit()
+        return {"message": f"Succès ! {total_stats_ajoutees} fiches de statistiques ajoutées pour les matchs terminés."}
+    except Exception as e:
+        db.rollback()
+        return {"erreur": str(e)}
+    finally:
+        db.close()
