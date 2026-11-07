@@ -1477,7 +1477,7 @@ async def sync_stats_today():
     
     db = SessionLocal()
     try:
-        # On regarde les matchs d'hier pour être sûr qu'ils sont terminés
+        # On regarde les matchs d'hier
         hier = datetime.now() - timedelta(days=1)
         debut_hier = hier.replace(hour=0, minute=0, second=0, microsecond=0)
         fin_hier = debut_hier + timedelta(days=1)
@@ -1485,11 +1485,12 @@ async def sync_stats_today():
         start_ts = int(debut_hier.timestamp())
         end_ts = int(fin_hier.timestamp())
         
-        url = f"https://api.5dollarfootballapi.com/v1/fixtures?start_time={start_ts}&end_time={end_ts}"
+        # 1. On récupère la liste des matchs d'hier
+        url_matchs = f"https://api.5dollarfootballapi.com/v1/fixtures?start_time={start_ts}&end_time={end_ts}"
         headers = {"Authorization": f"Bearer {api_key}"}
         
         async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers)
+            response = await client.get(url_matchs, headers=headers)
             
         if response.status_code != 200:
             return {"erreur": f"Erreur API : {response.status_code}"}
@@ -1500,48 +1501,72 @@ async def sync_stats_today():
         total_stats_ajoutees = 0
 
         for m in matchs_api:
-            # On ne traite que les matchs terminés (FT = Full Time)
-            if m.get("status") != "FT":
+            if m.get("status") != "finished":
                 continue
                 
             id_match_api = m["id"]
             
-            # On vérifie si ce match est dans notre base
+            # On vérifie si le match est dans notre base
             match_local = db.query(Match).filter(Match.id_source_apifootball == id_match_api).first()
             if not match_local:
                 continue
                 
-            # On vérifie si on a déjà les stats de ce match
+            # On vérifie si on a déjà les stats
             deja_stats = db.query(MatchStat).filter(MatchStat.match_id == match_local.id).first()
             if deja_stats:
                 continue
             
-            # --- EXTRACTION DES STATS ---
-            # (Attention : il faut vérifier la structure exacte des stats dans l'API 5Dollar)
-            # On suppose ici que l'API renvoie un objet "statistics" ou "stats" dans le match
-            stats = m.get("statistics", {})
-            
-            corners_dom = stats.get("corners", {}).get("home", 0) if stats else 0
-            corners_ext = stats.get("corners", {}).get("away", 0) if stats else 0
-            cartons_dom = stats.get("yellow_cards", {}).get("home", 0) if stats else 0
-            cartons_ext = stats.get("yellow_cards", {}).get("away", 0) if stats else 0
-            
-            nouvelle_stat = MatchStat(
-                match_id=match_local.id,
-                source_api="5dollar",
-                corners_domicile=corners_dom,
-                corners_exterieur=corners_ext,
-                cartons_jaunes_domicile=cartons_dom,
-                cartons_jaunes_exterieur=cartons_ext,
-                cartons_rouges_domicile=0, # A vérifier si l'API les donne
-                cartons_rouges_exterieur=0,
-                statut_validation="confirmé"
-            )
-            db.add(nouvelle_stat)
-            total_stats_ajoutees += 1
+            # 2. On appelle la route des stats
+            url_stats = f"https://api.5dollarfootballapi.com/v1/fixtures/{id_match_api}/statistics"
+            async with httpx.AsyncClient() as client:
+                res_stats = await client.get(url_stats, headers=headers)
+                
+            if res_stats.status_code == 200:
+                data_stats = res_stats.json()
+                stats = data_stats.get("data", {}).get("statistics", {})
+                
+                if not stats: continue
+
+                # 3. EXTRACTION DES NOUVELLES STATS (Tirs et Attaques)
+                tirs_cadres_dom = stats.get("shots_on_target", {}).get("home", 0) or 0
+                tirs_cadres_ext = stats.get("shots_on_target", {}).get("away", 0) or 0
+                
+                tirs_hors_dom = stats.get("shots_off_target", {}).get("home", 0) or 0
+                tirs_hors_ext = stats.get("shots_off_target", {}).get("away", 0) or 0
+                
+                # Total des tirs = tirs cadrés + tirs non cadrés
+                total_tirs_dom = tirs_cadres_dom + tirs_hors_dom
+                total_tirs_ext = tirs_cadres_ext + tirs_hors_ext
+                
+                attaques_dang_dom = stats.get("dangerous_attacks", {}).get("home", 0) or 0
+                attaques_dang_ext = stats.get("dangerous_attacks", {}).get("away", 0) or 0
+
+                # On garde aussi les corners/cartons au cas où l'API les donnerait pour d'autres matchs
+                corners_dom = stats.get("corners", {}).get("home", 0) or 0
+                corners_ext = stats.get("corners", {}).get("away", 0) or 0
+                jaunes_dom = stats.get("yellow_cards", {}).get("home", 0) or 0
+                jaunes_ext = stats.get("yellow_cards", {}).get("away", 0) or 0
+
+                nouvelle_stat = MatchStat(
+                    match_id=match_local.id,
+                    source_api="5dollar",
+                    corners_domicile=corners_dom,
+                    corners_exterieur=corners_ext,
+                    cartons_jaunes_domicile=jaunes_dom,
+                    cartons_jaunes_exterieur=jaunes_ext,
+                    tirs_domicile=total_tirs_dom,
+                    tirs_exterieur=total_tirs_ext,
+                    tirs_cadres_domicile=tirs_cadres_dom,
+                    tirs_cadres_exterieur=tirs_cadres_ext,
+                    attaques_dangereuses_domicile=attaques_dang_dom,
+                    attaques_dangereuses_exterieur=attaques_dang_ext,
+                    statut_validation="confirmé"
+                )
+                db.add(nouvelle_stat)
+                total_stats_ajoutees += 1
         
         db.commit()
-        return {"message": f"Succès ! {total_stats_ajoutees} fiches de statistiques ajoutées pour les matchs terminés."}
+        return {"message": f"Succès ! {total_stats_ajoutees} fiches de statistiques ajoutées (Tirs & Attaques)."}
     except Exception as e:
         db.rollback()
         return {"erreur": str(e)}
