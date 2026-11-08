@@ -255,7 +255,7 @@
     <div class="market-header"><span class="market-title" style="color: #ef4444;">⚔️ Marché des Fautes</span><span class="market-total" id="fautesFiabilite" style="background:#ef4444; color:#fff;">...</span></div>
     <div style="text-align: center; margin-bottom: 15px;">
         <div style="font-size: 32px; font-weight: 800; color: #ef4444;" id="fautesProbaFinale">--%</div>
-        <div style="font-size: 12px; color: var(--text-muted);">Probabilité +25.5 Fautes (Ensemble)</div>
+        <div style="font-size: 12px; color: var(--text-muted);" id="ligneFautesDisplay">Probabilité +25.5 Fautes (Ensemble)</div>
     </div>
     <div id="shadowFautes" style="margin-bottom: 15px; font-size: 13px; text-align: center; font-weight: bold;"></div>
 </div>
@@ -265,7 +265,7 @@
     <div class="market-header"><span class="market-title" style="color: #10b981;">👟 Marché des Touches</span><span class="market-total" id="touchesFiabilite" style="background:#10b981; color:#fff;">...</span></div>
     <div style="text-align: center; margin-bottom: 15px;">
         <div style="font-size: 32px; font-weight: 800; color: #10b981;" id="touchesProbaFinale">--%</div>
-        <div style="font-size: 12px; color: var(--text-muted);">Probabilité +950.5 Touches (Ensemble)</div>
+        <div style="font-size: 12px; color: var(--text-muted);" id="ligneTouchesDisplay">Probabilité +950.5 Touches (Ensemble)</div>
     </div>
     <div id="shadowTouches" style="margin-bottom: 15px; font-size: 13px; text-align: center; font-weight: bold;"></div>
 </div>
@@ -373,20 +373,24 @@
     const extFautes = document.getElementById('extFautes').value || 0;
     const extTouches = document.getElementById('extTouches').value || 0;
     
-    // NOUVEAU : On lit la ligne et la cote
+    // On lit la ligne et la cote saisies
     const ligneFautes = document.getElementById('ligneFautes').value || 25.5;
     const coteFautes = document.getElementById('coteFautes').value || 1.85;
     const ligneTouches = document.getElementById('ligneTouches').value || 950.5;
     const coteTouches = document.getElementById('coteTouches').value || 1.85;
 
     try {
-        // Appel Fautes (on ajoute &ligne=... et &cote=... dans le lien)
+        // --- ANALYSE DES FAUTES ---
         const resFautes = await fetch(`/predict-fautes/${matchId}?dom_fautes=${domFautes}&ext_fautes=${extFautes}&ligne=${ligneFautes}&cote=${coteFautes}`);
         const dataFautes = await resFautes.json();
 
         if (!dataFautes.erreur) {
             let affichageFautes = dataFautes.proba_calibree ? dataFautes.proba_calibree : dataFautes.ensemble_final;
             document.getElementById('fautesProbaFinale').innerText = affichageFautes + '%';
+            
+            // NOUVEAU : On met à jour le texte avec la ligne saisie
+            document.getElementById('ligneFautesDisplay').innerText = `Probabilité +${ligneFautes} Fautes (Ensemble)`;
+
             const fiabFautes = document.getElementById('fautesFiabilite');
             fiabFautes.innerText = dataFautes.fiabilite;
             fiabFautes.style.background = dataFautes.fiabilite.includes('HAUTE') ? 'var(--accent)' : (dataFautes.fiabilite.includes('MOYENNE') ? '#f59e0b' : 'var(--danger)');
@@ -399,13 +403,17 @@
             }
         }
 
-        // Appel Touches (on ajoute &ligne=... et &cote=... dans le lien)
+        // --- ANALYSE DES TOUCHES ---
         const resTouches = await fetch(`/predict-touches/${matchId}?dom_touches=${domTouches}&ext_touches=${extTouches}&ligne=${ligneTouches}&cote=${coteTouches}`);
         const dataTouches = await resTouches.json();
 
         if (!dataTouches.erreur) {
             let affichageTouches = dataTouches.proba_calibree ? dataTouches.proba_calibree : dataTouches.ensemble_final;
             document.getElementById('touchesProbaFinale').innerText = affichageTouches + '%';
+            
+            // NOUVEAU : On met à jour le texte avec la ligne saisie
+            document.getElementById('ligneTouchesDisplay').innerText = `Probabilité +${ligneTouches} Touches (Ensemble)`;
+
             const fiabTouches = document.getElementById('touchesFiabilite');
             fiabTouches.innerText = dataTouches.fiabilite;
             fiabTouches.style.background = dataTouches.fiabilite.includes('HAUTE') ? 'var(--accent)' : (dataTouches.fiabilite.includes('MOYENNE') ? '#f59e0b' : 'var(--danger)');
