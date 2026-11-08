@@ -1858,32 +1858,29 @@ async def predict_shots_target(match_id_local: int, cote: float = 1.85):
         db.close()
 
 @app.get("/predict-fautes/{match_id_local}")
-async def predict_fautes(match_id_local: int, dom_fautes: float, ext_fautes: float, cote: float = 1.85):
+async def predict_fautes(match_id_local: int, dom_fautes: float, ext_fautes: float, ligne: float = 25.5, cote: float = 1.85):
     if not SessionLocal: return {"erreur": "Pas de BDD"}
     db = SessionLocal()
     try:
         match = db.query(Match).filter(Match.id == match_id_local).first()
         if not match: return {"erreur": "Match introuvable."}
 
-        # On utilise directement les moyennes fournies par l'utilisateur
         lambda_total = dom_fautes + ext_fautes
-        ligne = 25.5 # Ligne standard pour les fautes
 
-        # Application de nos modèles mathématiques (avec les formules simplifiées)
+        # Application de nos modèles mathématiques
         p_poisson = calc_poisson(lambda_total, ligne)
         p_nbinom = calc_binomiale_negative(lambda_total, ligne)
         p_mc = calc_monte_carlo(lambda_total, ligne)
         p_zip = calc_zero_inflated_poisson(lambda_total, ligne, zero_prob=0.02)
         
-        # Modèles dynamiques (on simule un état neutre pour le manuel)
+        # Modèles dynamiques
         etat_viterbi = calc_viterbi_state(minute=45, score_dom=0, score_ext=0)
         lambda_mmpp = calc_mmpp(lambda_total, etat_viterbi)
         p_mmpp = calc_poisson(lambda_mmpp, ligne)
         
-        p_hamilton = calc_poisson(lambda_total * 1.05, ligne) # Léger boost manuel
+        p_hamilton = calc_poisson(lambda_total * 1.05, ligne)
         p_hurst = calc_poisson(lambda_total * 0.98, ligne)
 
-        # On rassemble les modèles
         liste_probas = [p_poisson, p_nbinom, p_mc, p_zip, p_mmpp, p_hamilton, p_hurst]
         moyenne_ensemble = np.mean(liste_probas)
         ecart_type = np.std(liste_probas)
@@ -1894,15 +1891,13 @@ async def predict_fautes(match_id_local: int, dom_fautes: float, ext_fautes: flo
         elif modeles_proches >= 3: fiabilite = "MOYENNE ⚠️"
         else: fiabilite = "FAIBLE ❌ (Divergence)"
 
-        # Calibration de la probabilité
         proba_calibree = calibrer_probabilite(moyenne_ensemble, ecart_type, modeles_proches)
 
-        # Shadow Market
         shadow_result = calc_shadow_market(moyenne_ensemble, cote)
 
         return {
             "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
-            "marche": "Fautes (+25.5)",
+            "marche": f"Fautes (+{ligne})",
             "ensemble_final": round(moyenne_ensemble, 2),
             "proba_calibree": round(proba_calibree, 2),
             "fiabilite": fiabilite,
@@ -1914,16 +1909,14 @@ async def predict_fautes(match_id_local: int, dom_fautes: float, ext_fautes: flo
         db.close()
 
 @app.get("/predict-touches/{match_id_local}")
-async def predict_touches(match_id_local: int, dom_touches: float, ext_touches: float, cote: float = 1.85):
+async def predict_touches(match_id_local: int, dom_touches: float, ext_touches: float, ligne: float = 950.5, cote: float = 1.85):
     if not SessionLocal: return {"erreur": "Pas de BDD"}
     db = SessionLocal()
     try:
         match = db.query(Match).filter(Match.id == match_id_local).first()
         if not match: return {"erreur": "Match introuvable."}
 
-        # On utilise directement les moyennes fournies par l'utilisateur
         lambda_total = dom_touches + ext_touches
-        ligne = 950.5 # Ligne standard pour les touches (à adapter selon les championnats)
 
         # Application de nos modèles mathématiques
         p_poisson = calc_poisson(lambda_total, ligne)
@@ -1931,7 +1924,7 @@ async def predict_touches(match_id_local: int, dom_touches: float, ext_touches: 
         p_mc = calc_monte_carlo(lambda_total, ligne)
         p_zip = calc_zero_inflated_poisson(lambda_total, ligne, zero_prob=0.01)
         
-        # Modèles dynamiques (état neutre)
+        # Modèles dynamiques
         etat_viterbi = calc_viterbi_state(minute=45, score_dom=0, score_ext=0)
         lambda_mmpp = calc_mmpp(lambda_total, etat_viterbi)
         p_mmpp = calc_poisson(lambda_mmpp, ligne)
@@ -1939,7 +1932,6 @@ async def predict_touches(match_id_local: int, dom_touches: float, ext_touches: 
         p_hamilton = calc_poisson(lambda_total * 1.02, ligne) 
         p_hurst = calc_poisson(lambda_total * 0.98, ligne)
 
-        # On rassemble les modèles
         liste_probas = [p_poisson, p_nbinom, p_mc, p_zip, p_mmpp, p_hamilton, p_hurst]
         moyenne_ensemble = np.mean(liste_probas)
         ecart_type = np.std(liste_probas)
@@ -1950,15 +1942,13 @@ async def predict_touches(match_id_local: int, dom_touches: float, ext_touches: 
         elif modeles_proches >= 3: fiabilite = "MOYENNE ⚠️"
         else: fiabilite = "FAIBLE ❌ (Divergence)"
 
-        # Calibration de la probabilité
         proba_calibree = calibrer_probabilite(moyenne_ensemble, ecart_type, modeles_proches)
 
-        # Shadow Market
         shadow_result = calc_shadow_market(moyenne_ensemble, cote)
 
         return {
             "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
-            "marche": "Touches (+950.5)",
+            "marche": f"Touches (+{ligne})",
             "ensemble_final": round(moyenne_ensemble, 2),
             "proba_calibree": round(proba_calibree, 2),
             "fiabilite": fiabilite,
