@@ -189,7 +189,11 @@
         <!-- MOTEUR TIRS (avec champ cote) -->
         <div class="market-card" style="border: 2px solid #a855f7; background: linear-gradient(135deg, #1e293b, #0f172a);">
             <div class="market-header"><span class="market-title" style="color: #a855f7;">🎯 Moteur de Domination (Tirs)</span><span class="market-total" id="dominationFiabilite" style="background:#a855f7; color:#fff;">...</span></div>
-            <div style="text-align: center; margin-bottom: 15px;"><div style="font-size: 32px; font-weight: 800; color: #a855f7;" id="dominationProbaFinale">--%</div><div style="font-size: 12px; color: var(--text-muted);">Probabilité +22.5 Tirs</div></div>
+            <div style="text-align: center; margin-bottom: 15px;">
+            <div style="font-size: 32px; font-weight: 800; color: #a855f7;" id="dominationProbaFinale">--%</div>
+            <div style="font-size: 12px; color: var(--text-muted);">Probabilité Calibrée</div>
+            <div style="font-size: 10px; color: #64748b; margin-top: 2px;" id="probaBruteShotsDisplay">Brute: --%</div>
+        </div>
             <div id="shadowDomination" style="margin-bottom: 15px; font-size: 13px; text-align: center; font-weight: bold;"></div>
             <div style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 10px; background: var(--bg-dark); padding: 10px; border-radius: 8px;">
                 <span style="font-size: 12px; color: var(--text-muted);">Cote (Tirs):</span>
@@ -200,7 +204,11 @@
         <!-- MOTEUR TIRS CADRÉS (avec champ cote) -->
         <div class="market-card" style="border: 2px solid #c084fc; background: linear-gradient(135deg, #1e293b, #0f172a);">
             <div class="market-header"><span class="market-title" style="color: #c084fc;">🎯 Moteur Tirs Cadrés</span><span class="market-total" id="dominationTargetFiabilite" style="background:#c084fc; color:#fff;">...</span></div>
-            <div style="text-align: center; margin-bottom: 15px;"><div style="font-size: 32px; font-weight: 800; color: #c084fc;" id="dominationTargetProbaFinale">--%</div><div style="font-size: 12px; color: var(--text-muted);">Probabilité +8.5 Tirs Cadrés</div></div>
+            <div style="text-align: center; margin-bottom: 15px;">
+            <div style="font-size: 32px; font-weight: 800; color: #c084fc;" id="dominationTargetProbaFinale">--%</div>
+            <div style="font-size: 12px; color: var(--text-muted);">Probabilité Calibrée</div>
+            <div style="font-size: 10px; color: #64748b; margin-top: 2px;" id="probaBruteShotsTargetDisplay">Brute: --%</div>
+        </div>
             <div id="shadowDominationTarget" style="margin-bottom: 15px; font-size: 13px; text-align: center; font-weight: bold;"></div>
             <div style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 10px; background: var(--bg-dark); padding: 10px; border-radius: 8px;">
                 <span style="font-size: 12px; color: var(--text-muted);">Cote (Tirs Cadrés):</span>
@@ -509,40 +517,52 @@
         }
 
         // --- TIRS ---
-        if (dataShots.ensemble_final) {
-            document.getElementById('dominationProbaFinale').innerText = dataShots.ensemble_final + '%';
-            const fiabDom = document.getElementById('dominationFiabilite');
-            fiabDom.innerText = dataShots.fiabilite;
-            if(dataShots.fiabilite.includes('HAUTE')) fiabDom.style.background = 'var(--accent)';
-            if(dataShots.fiabilite.includes('MOYENNE')) fiabDom.style.background = '#f59e0b';
-            if(dataShots.fiabilite.includes('FAIBLE')) fiabDom.style.background = 'var(--danger)';
+if (dataShots.ensemble_final) {
+    let probaBruteS = dataShots.ensemble_final;
+    let probaCalibreeS = dataShots.proba_calibree ? dataShots.proba_calibree : probaBruteS;
+    
+    document.getElementById('dominationProbaFinale').innerText = probaCalibreeS + '%';
+    const bruteShotsDisplay = document.getElementById('probaBruteShotsDisplay');
+    if (bruteShotsDisplay) { bruteShotsDisplay.innerText = `Brute: ${probaBruteS}%`; }
 
-            const shadowDom = document.getElementById('shadowDomination');
-            if (dataShots.shadow_market && !dataShots.shadow_market.erreur) {
-                shadowDom.style.display = 'block';
-                let edgeDom = dataShots.shadow_market.edge;
-                shadowDom.innerHTML = `Cote: ${dataShots.shadow_market.cote_saisie} | Edge: ${edgeDom}% <br> <span style="font-size:14px;">${dataShots.shadow_market.statut_shadow_market}</span>`;
-                shadowDom.style.color = edgeDom > 5 ? 'var(--accent)' : (edgeDom > 0 ? '#f59e0b' : 'var(--danger)');
-            } else { shadowDom.style.display = 'none'; }
-        }
+    const fiabDom = document.getElementById('dominationFiabilite');
+    fiabDom.innerText = dataShots.fiabilite;
+    if(dataShots.fiabilite.includes('HAUTE')) fiabDom.style.background = 'var(--accent)';
+    if(dataShots.fiabilite.includes('MOYENNE')) fiabDom.style.background = '#f59e0b';
+    if(dataShots.fiabilite.includes('FAIBLE')) fiabDom.style.background = 'var(--danger)';
+
+    const shadowDom = document.getElementById('shadowDomination');
+    if (dataShots.shadow_market && !dataShots.shadow_market.erreur) {
+        shadowDom.style.display = 'block';
+        let edgeDom = dataShots.shadow_market.edge;
+        shadowDom.innerHTML = `Cote: ${dataShots.shadow_market.cote_saisie} | Edge: ${edgeDom}% <br> <span style="font-size:14px;">${dataShots.shadow_market.statut_shadow_market}</span>`;
+        shadowDom.style.color = edgeDom > 5 ? 'var(--accent)' : (edgeDom > 0 ? '#f59e0b' : 'var(--danger)');
+    } else { shadowDom.style.display = 'none'; }
+}
 
         // --- TIRS CADRÉS ---
-        if (dataShotsTarget.ensemble_final) {
-            document.getElementById('dominationTargetProbaFinale').innerText = dataShotsTarget.ensemble_final + '%';
-            const fiabDomT = document.getElementById('dominationTargetFiabilite');
-            fiabDomT.innerText = dataShotsTarget.fiabilite;
-            if(dataShotsTarget.fiabilite.includes('HAUTE')) fiabDomT.style.background = 'var(--accent)';
-            if(dataShotsTarget.fiabilite.includes('MOYENNE')) fiabDomT.style.background = '#f59e0b';
-            if(dataShotsTarget.fiabilite.includes('FAIBLE')) fiabDomT.style.background = 'var(--danger)';
+if (dataShotsTarget.ensemble_final) {
+    let probaBruteT = dataShotsTarget.ensemble_final;
+    let probaCalibreeT = dataShotsTarget.proba_calibree ? dataShotsTarget.proba_calibree : probaBruteT;
+    
+    document.getElementById('dominationTargetProbaFinale').innerText = probaCalibreeT + '%';
+    const bruteShotsTargetDisplay = document.getElementById('probaBruteShotsTargetDisplay');
+    if (bruteShotsTargetDisplay) { bruteShotsTargetDisplay.innerText = `Brute: ${probaBruteT}%`; }
 
-            const shadowDomT = document.getElementById('shadowDominationTarget');
-            if (dataShotsTarget.shadow_market && !dataShotsTarget.shadow_market.erreur) {
-                shadowDomT.style.display = 'block';
-                let edgeDomT = dataShotsTarget.shadow_market.edge;
-                shadowDomT.innerHTML = `Cote: ${dataShotsTarget.shadow_market.cote_saisie} | Edge: ${edgeDomT}% <br> <span style="font-size:14px;">${dataShotsTarget.shadow_market.statut_shadow_market}</span>`;
-                shadowDomT.style.color = edgeDomT > 5 ? 'var(--accent)' : (edgeDomT > 0 ? '#f59e0b' : 'var(--danger)');
-            } else { shadowDomT.style.display = 'none'; }
-        }
+    const fiabDomT = document.getElementById('dominationTargetFiabilite');
+    fiabDomT.innerText = dataShotsTarget.fiabilite;
+    if(dataShotsTarget.fiabilite.includes('HAUTE')) fiabDomT.style.background = 'var(--accent)';
+    if(dataShotsTarget.fiabilite.includes('MOYENNE')) fiabDomT.style.background = '#f59e0b';
+    if(dataShotsTarget.fiabilite.includes('FAIBLE')) fiabDomT.style.background = 'var(--danger)';
+
+    const shadowDomT = document.getElementById('shadowDominationTarget');
+    if (dataShotsTarget.shadow_market && !dataShotsTarget.shadow_market.erreur) {
+        shadowDomT.style.display = 'block';
+        let edgeDomT = dataShotsTarget.shadow_market.edge;
+        shadowDomT.innerHTML = `Cote: ${dataShotsTarget.shadow_market.cote_saisie} | Edge: ${edgeDomT}% <br> <span style="font-size:14px;">${dataShotsTarget.shadow_market.statut_shadow_market}</span>`;
+        shadowDomT.style.color = edgeDomT > 5 ? 'var(--accent)' : (edgeDomT > 0 ? '#f59e0b' : 'var(--danger)');
+    } else { shadowDomT.style.display = 'none'; }
+}
 
         // --- CARTES SIMPLES ---
         document.getElementById('totalCorners').innerText = `Moy: ${dataC.analyse_corners.total_attendu}`;
