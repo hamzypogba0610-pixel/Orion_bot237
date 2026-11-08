@@ -1836,6 +1836,7 @@ async def predict_shots_target(match_id_local: int, cote: float = 1.85):
         ecart_type = np.std(liste_probas)
 
         modeles_proches = sum(1 for p in liste_probas if abs(p - moyenne_ensemble) <= 10)
+        proba_calibree_shots_target = calibrer_probabilite(moyenne_ensemble, ecart_type, modeles_proches)
         if modeles_proches >= 10: fiabilite = "HAUTE ✅"
         elif modeles_proches >= 7: fiabilite = "MOYENNE ⚠️"
         else: fiabilite = "FAIBLE ❌ (Divergence)"
@@ -1846,6 +1847,8 @@ async def predict_shots_target(match_id_local: int, cote: float = 1.85):
             "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
             "marche": "Tirs Cadrés (+8.5)",
             "ensemble_final": round(moyenne_ensemble, 2),
+            "ensemble_final": round(moyenne_ensemble, 2),
+            "proba_calibree": round(proba_calibree_shots_target, 2), # <--- NOUVELLE LIGNE
             "fiabilite": fiabilite,
             "shadow_market": shadow_result
         }
