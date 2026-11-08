@@ -558,3 +558,25 @@ def calc_hurst_exponent(historique_corners):
         return H, "Retour à la moyenne"
     else:
         return H, "Aléatoire (Normal)"
+
+def calibrer_probabilite(proba_brute, ecart_type, nb_modeles_proches):
+    """
+    Recadre la probabilité brute pour éviter l'excès de confiance.
+    Plus les modèles sont en désaccord, plus on tire vers 50%.
+    """
+    # 1. Facteur de base (on tire de 15% vers 50% par défaut)
+    facteur_lissage = 0.85
+    proba_calibree = (proba_brute * facteur_lissage) + (50.0 * (1 - facteur_lissage))
+    
+    # 2. Pénalité de divergence (si écart-type > 8, on tire encore plus vers 50%)
+    if ecart_type > 8.0:
+        proba_calibree = (proba_calibree * 0.9) + (50.0 * 0.1)
+        
+    # 3. Pénalité d'overconfidence (si le bot dit plus de 65%, on baisse un peu plus)
+    if proba_calibree > 65.0:
+        proba_calibree = proba_calibree - 5.0
+    elif proba_calibree < 35.0:
+        proba_calibree = proba_calibree + 5.0 # On remonte aussi les probas trop basses
+        
+    # On s'assure de rester entre 1% et 99%
+    return max(1.0, min(99.0, proba_calibree))
