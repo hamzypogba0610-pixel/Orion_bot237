@@ -355,10 +355,39 @@
     const extFautes = document.getElementById('extFautes').value || 0;
     const extTouches = document.getElementById('extTouches').value || 0;
 
-    // Pour l'instant, on fait un calcul factice en attendant de coder la route API
-    // On affichera juste une alerte pour te montrer que le bouton fonctionne
-    
-    alert(`📊 Données saisies :\n\n🏠 Domicile : ${domFautes} fautes, ${domTouches} touches\n✈️ Extérieur : ${extFautes} fautes, ${extTouches} touches\n\n(Le moteur de calcul sera connecté à l'étape suivante)`);
+    try {
+        // Appel au moteur pour les Fautes
+        const resFautes = await fetch(`/predict-fautes/${matchId}?dom_fautes=${domFautes}&ext_fautes=${extFautes}&cote=1.85`);
+        const dataFautes = await resFautes.json();
+
+        if (dataFautes.erreur) {
+            alert("Erreur Fautes : " + dataFautes.erreur);
+        } else {
+            // Affichage dans la carte rouge
+            let affichageFautes = dataFautes.proba_calibree ? dataFautes.proba_calibree : dataFautes.ensemble_final;
+            document.getElementById('fautesProbaFinale').innerText = affichageFautes + '%';
+            
+            const fiabFautes = document.getElementById('fautesFiabilite');
+            fiabFautes.innerText = dataFautes.fiabilite;
+            if(dataFautes.fiabilite.includes('HAUTE')) fiabFautes.style.background = 'var(--accent)';
+            if(dataFautes.fiabilite.includes('MOYENNE')) fiabFautes.style.background = '#f59e0b';
+            if(dataFautes.fiabilite.includes('FAIBLE')) fiabFautes.style.background = 'var(--danger)';
+
+            const shadowFautes = document.getElementById('shadowFautes');
+            if (dataFautes.shadow_market && !dataFautes.shadow_market.erreur) {
+                shadowFautes.style.display = 'block';
+                let edge = dataFautes.shadow_market.edge;
+                shadowFautes.innerHTML = `Cote: ${dataFautes.shadow_market.cote_saisie} | Edge: ${edge}% <br> <span style="font-size:14px;">${dataFautes.shadow_market.statut_shadow_market}</span>`;
+                shadowFautes.style.color = edge > 5 ? 'var(--accent)' : (edge > 0 ? '#f59e0b' : 'var(--danger)');
+            }
+        }
+
+        // On fera la même chose pour les Touches juste après
+        alert("✅ Fautes calculées ! (Les Touches seront connectées à l'étape suivante)");
+
+    } catch (e) {
+        alert("Erreur de connexion avec le serveur.");
+    }
     }
 
     async function analyserLive() {
