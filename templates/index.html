@@ -125,8 +125,7 @@
                         <button onclick="analyserLiveCards()" style="background-color: #f59e0b; color: #000; margin-top: 15px;">⚡ Value Cartons</button>
                     </div>
                 </div>
-            </div>
-             <!-- NOUVEAU : SAISIE MANUELLE FAUTES & TOUCHES -->
+            <!-- NOUVEAU : SAISIE MANUELLE FAUTES & TOUCHES -->
 <div class="card" style="border: 2px solid #f59e0b; background: linear-gradient(135deg, #1e293b, #0f172a); margin-top: 20px;">
     <h3 style="color: #f59e0b; margin-bottom: 10px; text-align: center;">✍️ Saisie Manuelle (7 derniers matchs)</h3>
     <p style="font-size: 12px; color: var(--text-muted); text-align: center; margin-bottom: 15px;">Entre les moyennes par match pour que le bot calcule les Fautes et les Touches.</p>
@@ -142,9 +141,27 @@
             <div style="margin-bottom: 10px;"><label>Moy. Fautes</label><input type="number" id="extFautes" value="11.0" step="0.1"></div>
             <div><label>Moy. Touches</label><input type="number" id="extTouches" value="480" step="1"></div>
         </div>
+    </div>
+
+    <!-- NOUVEAU : LIGNE ET COTE -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: var(--bg-dark); padding: 10px; border-radius: 8px; margin-bottom: 15px;">
+        <div>
+            <label>Ligne Fautes (ex: 25.5)</label>
+            <input type="number" step="0.5" id="ligneFautes" value="25.5">
+            <label style="margin-top: 5px;">Cote Fautes</label>
+            <input type="number" step="0.01" id="coteFautes" value="1.85">
         </div>
-          <button onclick="analyserManuel()" style="background-color: #f59e0b; color: #000;">⚡ Analyser Fautes & Touches</button>
-</div>   
+        <div>
+            <label>Ligne Touches (ex: 950.5)</label>
+            <input type="number" step="0.5" id="ligneTouches" value="950.5">
+            <label style="margin-top: 5px;">Cote Touches</label>
+            <input type="number" step="0.01" id="coteTouches" value="1.85">
+        </div>
+    </div>
+
+    <button onclick="analyserManuel()" style="background-color: #f59e0b; color: #000;">⚡ Analyser Fautes & Touches</button>
+</div>
+                
             <!-- ZONE DES RÉSULTATS -->
             <div id="resultats" style="display: none;">
 
@@ -350,24 +367,30 @@
     const matchId = document.getElementById('matchId').value;
     if(!matchId) { alert("Veuillez d'abord sélectionner un match dans la liste déroulante."); return; }
 
+    // On lit les moyennes
     const domFautes = document.getElementById('domFautes').value || 0;
     const domTouches = document.getElementById('domTouches').value || 0;
     const extFautes = document.getElementById('extFautes').value || 0;
     const extTouches = document.getElementById('extTouches').value || 0;
+    
+    // NOUVEAU : On lit la ligne et la cote
+    const ligneFautes = document.getElementById('ligneFautes').value || 25.5;
+    const coteFautes = document.getElementById('coteFautes').value || 1.85;
+    const ligneTouches = document.getElementById('ligneTouches').value || 950.5;
+    const coteTouches = document.getElementById('coteTouches').value || 1.85;
 
     try {
-        // 1. Appel pour les Fautes
-        const resFautes = await fetch(`/predict-fautes/${matchId}?dom_fautes=${domFautes}&ext_fautes=${extFautes}&cote=1.85`);
+        // Appel Fautes (on ajoute &ligne=... et &cote=... dans le lien)
+        const resFautes = await fetch(`/predict-fautes/${matchId}?dom_fautes=${domFautes}&ext_fautes=${extFautes}&ligne=${ligneFautes}&cote=${coteFautes}`);
         const dataFautes = await resFautes.json();
 
         if (!dataFautes.erreur) {
             let affichageFautes = dataFautes.proba_calibree ? dataFautes.proba_calibree : dataFautes.ensemble_final;
             document.getElementById('fautesProbaFinale').innerText = affichageFautes + '%';
-            
             const fiabFautes = document.getElementById('fautesFiabilite');
             fiabFautes.innerText = dataFautes.fiabilite;
             fiabFautes.style.background = dataFautes.fiabilite.includes('HAUTE') ? 'var(--accent)' : (dataFautes.fiabilite.includes('MOYENNE') ? '#f59e0b' : 'var(--danger)');
-
+            
             const shadowFautes = document.getElementById('shadowFautes');
             if (dataFautes.shadow_market && !dataFautes.shadow_market.erreur) {
                 shadowFautes.style.display = 'block';
@@ -376,18 +399,17 @@
             }
         }
 
-        // 2. Appel pour les Touches
-        const resTouches = await fetch(`/predict-touches/${matchId}?dom_touches=${domTouches}&ext_touches=${extTouches}&cote=1.85`);
+        // Appel Touches (on ajoute &ligne=... et &cote=... dans le lien)
+        const resTouches = await fetch(`/predict-touches/${matchId}?dom_touches=${domTouches}&ext_touches=${extTouches}&ligne=${ligneTouches}&cote=${coteTouches}`);
         const dataTouches = await resTouches.json();
 
         if (!dataTouches.erreur) {
             let affichageTouches = dataTouches.proba_calibree ? dataTouches.proba_calibree : dataTouches.ensemble_final;
             document.getElementById('touchesProbaFinale').innerText = affichageTouches + '%';
-            
             const fiabTouches = document.getElementById('touchesFiabilite');
             fiabTouches.innerText = dataTouches.fiabilite;
             fiabTouches.style.background = dataTouches.fiabilite.includes('HAUTE') ? 'var(--accent)' : (dataTouches.fiabilite.includes('MOYENNE') ? '#f59e0b' : 'var(--danger)');
-
+            
             const shadowTouches = document.getElementById('shadowTouches');
             if (dataTouches.shadow_market && !dataTouches.shadow_market.erreur) {
                 shadowTouches.style.display = 'block';
