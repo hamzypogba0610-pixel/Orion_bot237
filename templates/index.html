@@ -396,160 +396,171 @@
         window.onload = chargerMatchs;
 
         async function analyserMatch() {
-            const matchId = document.getElementById('matchId').value;
-            if(!matchId) { alert("Veuillez sélectionner un match."); return; }
-            document.getElementById('resultats').style.display = 'none';
-            try {
-                const meteo = document.getElementById('meteo').value;
-                const arbitreProfil = document.getElementById('arbitreProfil').value;
-                
-                const resC = await fetch(`/predict-corners/${matchId}?meteo=${meteo}`);
-                const dataC = await resC.json();
-                const resK = await fetch(`/predict-cards/${matchId}?arbitre_profil=${arbitreProfil}`);
-                const dataK = await resK.json();
-                const resHT = await fetch(`/predict-ht-score/${matchId}`);
-                const dataHT = await resHT.json();
-                const resFT = await fetch(`/predict-ft-score/${matchId}`);
-                const dataFT = await resFT.json();
-                const resEnsemble = await fetch(`/predict-ensemble/${matchId}?meteo=${meteo}&cote=1.85`);
-                const dataEnsemble = await resEnsemble.json();
-                const resEnsembleCards = await fetch(`/predict-ensemble-cards/${matchId}?arbitre_profil=${arbitreProfil}&cote=1.85`);
-                const dataEnsembleCards = await resEnsembleCards.json();
-                const resShots = await fetch(`/predict-shots/${matchId}?cote=1.85`);
-                const dataShots = await resShots.json();
-                const resShotsTarget = await fetch(`/predict-shots-target/${matchId}?cote=1.85`);
-                const dataShotsTarget = await resShotsTarget.json();
+    const matchId = document.getElementById('matchId').value;
+    if(!matchId) { alert("Veuillez sélectionner un match."); return; }
+    document.getElementById('resultats').style.display = 'none';
+    try {
+        const meteo = document.getElementById('meteo').value;
+        const arbitreProfil = document.getElementById('arbitreProfil').value;
+        
+        const resC = await fetch(`/predict-corners/${matchId}?meteo=${meteo}`);
+        const dataC = await resC.json();
+        const resK = await fetch(`/predict-cards/${matchId}?arbitre_profil=${arbitreProfil}`);
+        const dataK = await resK.json();
+        const resHT = await fetch(`/predict-ht-score/${matchId}`);
+        const dataHT = await resHT.json();
+        const resFT = await fetch(`/predict-ft-score/${matchId}`);
+        const dataFT = await resFT.json();
+        const resEnsemble = await fetch(`/predict-ensemble/${matchId}?meteo=${meteo}&cote=1.85`);
+        const dataEnsemble = await resEnsemble.json();
+        const resEnsembleCards = await fetch(`/predict-ensemble-cards/${matchId}?arbitre_profil=${arbitreProfil}&cote=1.85`);
+        const dataEnsembleCards = await resEnsembleCards.json();
+        const resShots = await fetch(`/predict-shots/${matchId}?cote=1.85`);
+        const dataShots = await resShots.json();
+        const resShotsTarget = await fetch(`/predict-shots-target/${matchId}?cote=1.85`);
+        const dataShotsTarget = await resShotsTarget.json();
 
-                let erreurs = [];
-                if (dataC.erreur) erreurs.push("Corners: " + dataC.erreur);
-                if (dataK.erreur) erreurs.push("Cartons: " + dataK.erreur);
-                if (dataHT.erreur) erreurs.push("Mi-temps: " + dataHT.erreur);
-                if (dataFT.erreur) erreurs.push("Final: " + dataFT.erreur);
-                if (dataEnsemble.erreur) erreurs.push("Ensemble: " + dataEnsemble.erreur);
-                if (dataEnsembleCards.erreur) erreurs.push("Ensemble Cartons: " + dataEnsembleCards.erreur);
-                
-                if (erreurs.length > 0) { alert("⚠️ Données insuffisantes pour ce match :\n\n" + erreurs.join("\n")); return; }
+        let erreurs = [];
+        if (dataC.erreur) erreurs.push("Corners: " + dataC.erreur);
+        if (dataK.erreur) erreurs.push("Cartons: " + dataK.erreur);
+        if (dataHT.erreur) erreurs.push("Mi-temps: " + dataHT.erreur);
+        if (dataFT.erreur) erreurs.push("Final: " + dataFT.erreur);
+        if (dataEnsemble.erreur) erreurs.push("Ensemble: " + dataEnsemble.erreur);
+        if (dataEnsembleCards.erreur) erreurs.push("Ensemble Cartons: " + dataEnsembleCards.erreur);
+        
+        if (erreurs.length > 0) { alert("⚠️ Données insuffisantes pour ce match :\n\n" + erreurs.join("\n")); return; }
 
-                currentMatchId = matchId; currentDataC = dataC; currentDataK = dataK;
+        currentMatchId = matchId; currentDataC = dataC; currentDataK = dataK;
 
-                const select = document.getElementById('matchId');
-                const selectedOption = select.options[select.selectedIndex];
-                const logoDom = selectedOption.getAttribute('data-logo-dom');
-                const logoExt = selectedOption.getAttribute('data-logo-ext');
-                let titleHtml = (logoDom && logoExt) ? `<img src="${logoDom}"> <span>${dataC.match}</span> <img src="${logoExt}">` : `⚽ <span>${dataC.match}</span>`;
-                document.getElementById('matchTitle').innerHTML = titleHtml;
+        const select = document.getElementById('matchId');
+        const selectedOption = select.options[select.selectedIndex];
+        const logoDom = selectedOption.getAttribute('data-logo-dom');
+        const logoExt = selectedOption.getAttribute('data-logo-ext');
+        let titleHtml = (logoDom && logoExt) ? `<img src="${logoDom}"> <span>${dataC.match}</span> <img src="${logoExt}">` : `⚽ <span>${dataC.match}</span>`;
+        document.getElementById('matchTitle').innerHTML = titleHtml;
 
-                const ctxDiv = document.getElementById('contextInfo');
-                if (dataC.contexte) { ctxDiv.style.display = 'block'; ctxDiv.innerHTML = `📊 <b>Force des équipes :</b> Moy. Champ: ${dataC.contexte.moyenne_championnat} | Attaque: ${dataC.contexte.force_attaque_dom} | Défense: ${dataC.contexte.force_defense_ext}`; }
+        const ctxDiv = document.getElementById('contextInfo');
+        if (dataC.contexte) { ctxDiv.style.display = 'block'; ctxDiv.innerHTML = `📊 <b>Force des équipes :</b> Moy. Champ: ${dataC.contexte.moyenne_championnat} | Attaque: ${dataC.contexte.force_attaque_dom} | Défense: ${dataC.contexte.force_defense_ext}`; }
 
-                if (dataEnsemble.ensemble_final) {
-                    // On affiche la proba calibrée en priorité (plus prudente)
-                let affichagePrincipal = dataEnsemble.proba_calibree ? dataEnsemble.proba_calibree : dataEnsemble.ensemble_final;
-                document.getElementById('ensembleProbaFinale').innerText = affichagePrincipal + '%';
+        // --- ENSEMBLE CORNERS (Calibrée) ---
+        if (dataEnsemble.ensemble_final) {
+            let probaBruteC = dataEnsemble.ensemble_final;
+            let probaCalibreeC = dataEnsemble.proba_calibree ? dataEnsemble.proba_calibree : probaBruteC;
+            
+            document.getElementById('ensembleProbaFinale').innerText = probaCalibreeC + '%';
+            const bruteDisplay = document.getElementById('probaBruteDisplay');
+            if (bruteDisplay) { bruteDisplay.innerText = `Brute: ${probaBruteC}%`; }
 
-                    // On affiche la proba brute en petit dessous
-                const bruteDisplay = document.getElementById('probaBruteDisplay');
-                if (bruteDisplay) {
-                bruteDisplay.innerText = `Brute: ${dataEnsemble.ensemble_final}%`;
-       }
-                    const fiabBadge = document.getElementById('ensembleFiabilite');
-                    fiabBadge.innerText = dataEnsemble.fiabilite;
-                    if(dataEnsemble.fiabilite.includes('HAUTE')) fiabBadge.style.background = 'var(--accent)';
-                    if(dataEnsemble.fiabilite.includes('MOYENNE')) fiabBadge.style.background = '#f59e0b';
-                    if(dataEnsemble.fiabilite.includes('FAIBLE')) fiabBadge.style.background = 'var(--danger)';
+            const fiabBadge = document.getElementById('ensembleFiabilite');
+            fiabBadge.innerText = dataEnsemble.fiabilite;
+            if(dataEnsemble.fiabilite.includes('HAUTE')) fiabBadge.style.background = 'var(--accent)';
+            if(dataEnsemble.fiabilite.includes('MOYENNE')) fiabBadge.style.background = '#f59e0b';
+            if(dataEnsemble.fiabilite.includes('FAIBLE')) fiabBadge.style.background = 'var(--danger)';
 
-                    document.getElementById('m_poisson').innerText = dataEnsemble.probabilites_ligne_9_5.poisson + '%';
-                    document.getElementById('m_nbinom').innerText = dataEnsemble.probabilites_ligne_9_5.binomiale_negative + '%';
-                    document.getElementById('m_mc').innerText = dataEnsemble.probabilites_ligne_9_5.monte_carlo + '%';
-                    document.getElementById('m_dc').innerText = dataEnsemble.probabilites_ligne_9_5.dixon_coles + '%';
-                    document.getElementById('m_bayes').innerText = dataEnsemble.probabilites_ligne_9_5.bayesien + '%';
-                    document.getElementById('m_hawkes').innerText = dataEnsemble.probabilites_ligne_9_5.hawkes + '%';
-                    document.getElementById('m_kalman').innerText = dataEnsemble.probabilites_ligne_9_5.kalman + '%';
-                    document.getElementById('m_markov').innerText = dataEnsemble.probabilites_ligne_9_5.markov + '%';
+            document.getElementById('m_poisson').innerText = dataEnsemble.probabilites_ligne_9_5.poisson + '%';
+            document.getElementById('m_nbinom').innerText = dataEnsemble.probabilites_ligne_9_5.binomiale_negative + '%';
+            document.getElementById('m_mc').innerText = dataEnsemble.probabilites_ligne_9_5.monte_carlo + '%';
+            document.getElementById('m_dc').innerText = dataEnsemble.probabilites_ligne_9_5.dixon_coles + '%';
+            document.getElementById('m_bayes').innerText = dataEnsemble.probabilites_ligne_9_5.bayesien + '%';
+            document.getElementById('m_hawkes').innerText = dataEnsemble.probabilites_ligne_9_5.hawkes + '%';
+            document.getElementById('m_kalman').innerText = dataEnsemble.probabilites_ligne_9_5.kalman + '%';
+            document.getElementById('m_markov').innerText = dataEnsemble.probabilites_ligne_9_5.markov + '%';
 
-                    const shadowDiv = document.getElementById('shadowMarketResult');
-                    if (dataEnsemble.shadow_market && !dataEnsemble.shadow_market.erreur) {
-                        shadowDiv.style.display = 'block';
-                        let edge = dataEnsemble.shadow_market.edge;
-                        shadowDiv.innerHTML = `Cote: ${dataEnsemble.shadow_market.cote_saisie} | Edge: ${edge}% <br> <span style="font-size:14px;">${dataEnsemble.shadow_market.statut_shadow_market}</span>`;
-                        shadowDiv.style.color = edge > 5 ? 'var(--accent)' : (edge > 0 ? '#f59e0b' : 'var(--danger)');
-                    } else { shadowDiv.style.display = 'none'; }
-                }
-
-                if (dataEnsembleCards.ensemble_final) {
-                    document.getElementById('ensembleCardsProbaFinale').innerText = dataEnsembleCards.ensemble_final + '%';
-                    const fiabBadgeC = document.getElementById('ensembleCardsFiabilite');
-                    fiabBadgeC.innerText = dataEnsembleCards.fiabilite;
-                    if(dataEnsembleCards.fiabilite.includes('HAUTE')) fiabBadgeC.style.background = 'var(--accent)';
-                    if(dataEnsembleCards.fiabilite.includes('MOYENNE')) fiabBadgeC.style.background = '#f59e0b';
-                    if(dataEnsembleCards.fiabilite.includes('FAIBLE')) fiabBadgeC.style.background = 'var(--danger)';
-
-                    document.getElementById('c_poisson').innerText = dataEnsembleCards.probabilites.poisson + '%';
-                    document.getElementById('c_nbinom').innerText = dataEnsembleCards.probabilites.binomiale_negative + '%';
-                    document.getElementById('c_mc').innerText = dataEnsembleCards.probabilites.monte_carlo + '%';
-                    document.getElementById('c_dc').innerText = dataEnsembleCards.probabilites.dixon_coles + '%';
-                    document.getElementById('c_bayes').innerText = dataEnsembleCards.probabilites.bayesien + '%';
-                    document.getElementById('c_hawkes').innerText = dataEnsembleCards.probabilites.hawkes + '%';
-                    document.getElementById('c_kalman').innerText = dataEnsembleCards.probabilites.kalman + '%';
-                    document.getElementById('c_markov').innerText = dataEnsembleCards.probabilites.markov + '%';
-
-                    const shadowDivC = document.getElementById('shadowMarketCardsResult');
-                    if (dataEnsembleCards.shadow_market && !dataEnsembleCards.shadow_market.erreur) {
-                        shadowDivC.style.display = 'block';
-                        let edgeC = dataEnsembleCards.shadow_market.edge;
-                        shadowDivC.innerHTML = `Cote: ${dataEnsembleCards.shadow_market.cote_saisie} | Edge: ${edgeC}% <br> <span style="font-size:14px;">${dataEnsembleCards.shadow_market.statut_shadow_market}</span>`;
-                        shadowDivC.style.color = edgeC > 5 ? 'var(--accent)' : (edgeC > 0 ? '#f59e0b' : 'var(--danger)');
-                    } else { shadowDivC.style.display = 'none'; }
-                }
-
-                if (dataShots.ensemble_final) {
-                    document.getElementById('dominationProbaFinale').innerText = dataShots.ensemble_final + '%';
-                    const fiabDom = document.getElementById('dominationFiabilite');
-                    fiabDom.innerText = dataShots.fiabilite;
-                    if(dataShots.fiabilite.includes('HAUTE')) fiabDom.style.background = 'var(--accent)';
-                    if(dataShots.fiabilite.includes('MOYENNE')) fiabDom.style.background = '#f59e0b';
-                    if(dataShots.fiabilite.includes('FAIBLE')) fiabDom.style.background = 'var(--danger)';
-
-                    const shadowDom = document.getElementById('shadowDomination');
-                    if (dataShots.shadow_market && !dataShots.shadow_market.erreur) {
-                        shadowDom.style.display = 'block';
-                        let edgeDom = dataShots.shadow_market.edge;
-                        shadowDom.innerHTML = `Cote: ${dataShots.shadow_market.cote_saisie} | Edge: ${edgeDom}% <br> <span style="font-size:14px;">${dataShots.shadow_market.statut_shadow_market}</span>`;
-                        shadowDom.style.color = edgeDom > 5 ? 'var(--accent)' : (edgeDom > 0 ? '#f59e0b' : 'var(--danger)');
-                    } else { shadowDom.style.display = 'none'; }
-                }
-
-                if (dataShotsTarget.ensemble_final) {
-                    document.getElementById('dominationTargetProbaFinale').innerText = dataShotsTarget.ensemble_final + '%';
-                    const fiabDomT = document.getElementById('dominationTargetFiabilite');
-                    fiabDomT.innerText = dataShotsTarget.fiabilite;
-                    if(dataShotsTarget.fiabilite.includes('HAUTE')) fiabDomT.style.background = 'var(--accent)';
-                    if(dataShotsTarget.fiabilite.includes('MOYENNE')) fiabDomT.style.background = '#f59e0b';
-                    if(dataShotsTarget.fiabilite.includes('FAIBLE')) fiabDomT.style.background = 'var(--danger)';
-
-                    const shadowDomT = document.getElementById('shadowDominationTarget');
-                    if (dataShotsTarget.shadow_market && !dataShotsTarget.shadow_market.erreur) {
-                        shadowDomT.style.display = 'block';
-                        let edgeDomT = dataShotsTarget.shadow_market.edge;
-                        shadowDomT.innerHTML = `Cote: ${dataShotsTarget.shadow_market.cote_saisie} | Edge: ${edgeDomT}% <br> <span style="font-size:14px;">${dataShotsTarget.shadow_market.statut_shadow_market}</span>`;
-                        shadowDomT.style.color = edgeDomT > 5 ? 'var(--accent)' : (edgeDomT > 0 ? '#f59e0b' : 'var(--danger)');
-                    } else { shadowDomT.style.display = 'none'; }
-                }
-
-                document.getElementById('totalCorners').innerText = `Moy: ${dataC.analyse_corners.total_attendu}`;
-                document.getElementById('totalCartons').innerText = `Moy: ${dataK.analyse_cartons.total_attendu}`;
-                document.getElementById('cornersProbs').innerHTML = genererBarres(dataC.analyse_corners, ['probabilite_plus_de_8_5', 'probabilite_plus_de_9_5'], ['+8.5 Corners', '+9.5 Corners']);
-                document.getElementById('cartonsProbs').innerHTML = genererBarres(dataK.analyse_cartons, ['probabilite_plus_de_3_5', 'probabilite_plus_de_4_5'], ['+3.5 Cartons', '+4.5 Cartons']);
-
-                let htHtml = ''; dataHT.top_scores_mi_temps.forEach((s, i) => { htHtml += `<div style="background:var(--bg-dark); padding:10px; border-radius:8px; width:30%; border: 1px solid ${i===0?'var(--accent)':'var(--border)'};"><div style="font-size:20px; font-weight:800; color:${i===0?'var(--accent)':'var(--text-main)'};">${s.score}</div><div style="font-size:12px; color:var(--text-muted);">${s.probabilite}%</div></div>`; });
-                document.getElementById('htScoresProbs').innerHTML = htHtml;
-
-                let ftHtml = ''; dataFT.top_scores_finaux.forEach((s, i) => { ftHtml += `<div style="background:var(--bg-dark); padding:10px; border-radius:8px; width:30%; border: 1px solid ${i===0?'var(--blue)':'var(--border)'};"><div style="font-size:20px; font-weight:800; color:${i===0?'var(--blue)':'var(--text-main)'};">${s.score}</div><div style="font-size:12px; color:var(--text-muted);">${s.probabilite}%</div></div>`; });
-                document.getElementById('ftScoresProbs').innerHTML = ftHtml;
-
-                document.getElementById('resultats').style.display = 'block';
-            } catch (e) { alert("Erreur de connexion."); }
+            const shadowDiv = document.getElementById('shadowMarketResult');
+            if (dataEnsemble.shadow_market && !dataEnsemble.shadow_market.erreur) {
+                shadowDiv.style.display = 'block';
+                let edge = dataEnsemble.shadow_market.edge;
+                shadowDiv.innerHTML = `Cote: ${dataEnsemble.shadow_market.cote_saisie} | Edge: ${edge}% <br> <span style="font-size:14px;">${dataEnsemble.shadow_market.statut_shadow_market}</span>`;
+                shadowDiv.style.color = edge > 5 ? 'var(--accent)' : (edge > 0 ? '#f59e0b' : 'var(--danger)');
+            } else { shadowDiv.style.display = 'none'; }
         }
+
+        // --- ENSEMBLE CARTONS (Calibrée) ---
+        if (dataEnsembleCards.ensemble_final) {
+            let probaBruteK = dataEnsembleCards.ensemble_final;
+            let probaCalibreeK = dataEnsembleCards.proba_calibree ? dataEnsembleCards.proba_calibree : probaBruteK;
+            
+            document.getElementById('ensembleCardsProbaFinale').innerText = probaCalibreeK + '%';
+            const bruteCardsDisplay = document.getElementById('probaBruteCardsDisplay');
+            if (bruteCardsDisplay) { bruteCardsDisplay.innerText = `Brute: ${probaBruteK}%`; }
+
+            const fiabBadgeC = document.getElementById('ensembleCardsFiabilite');
+            fiabBadgeC.innerText = dataEnsembleCards.fiabilite;
+            if(dataEnsembleCards.fiabilite.includes('HAUTE')) fiabBadgeC.style.background = 'var(--accent)';
+            if(dataEnsembleCards.fiabilite.includes('MOYENNE')) fiabBadgeC.style.background = '#f59e0b';
+            if(dataEnsembleCards.fiabilite.includes('FAIBLE')) fiabBadgeC.style.background = 'var(--danger)';
+
+            document.getElementById('c_poisson').innerText = dataEnsembleCards.probabilites.poisson + '%';
+            document.getElementById('c_nbinom').innerText = dataEnsembleCards.probabilites.binomiale_negative + '%';
+            document.getElementById('c_mc').innerText = dataEnsembleCards.probabilites.monte_carlo + '%';
+            document.getElementById('c_dc').innerText = dataEnsembleCards.probabilites.dixon_coles + '%';
+            document.getElementById('c_bayes').innerText = dataEnsembleCards.probabilites.bayesien + '%';
+            document.getElementById('c_hawkes').innerText = dataEnsembleCards.probabilites.hawkes + '%';
+            document.getElementById('c_kalman').innerText = dataEnsembleCards.probabilites.kalman + '%';
+            document.getElementById('c_markov').innerText = dataEnsembleCards.probabilites.markov + '%';
+
+            const shadowDivC = document.getElementById('shadowMarketCardsResult');
+            if (dataEnsembleCards.shadow_market && !dataEnsembleCards.shadow_market.erreur) {
+                shadowDivC.style.display = 'block';
+                let edgeC = dataEnsembleCards.shadow_market.edge;
+                shadowDivC.innerHTML = `Cote: ${dataEnsembleCards.shadow_market.cote_saisie} | Edge: ${edgeC}% <br> <span style="font-size:14px;">${dataEnsembleCards.shadow_market.statut_shadow_market}</span>`;
+                shadowDivC.style.color = edgeC > 5 ? 'var(--accent)' : (edgeC > 0 ? '#f59e0b' : 'var(--danger)');
+            } else { shadowDivC.style.display = 'none'; }
+        }
+
+        // --- TIRS ---
+        if (dataShots.ensemble_final) {
+            document.getElementById('dominationProbaFinale').innerText = dataShots.ensemble_final + '%';
+            const fiabDom = document.getElementById('dominationFiabilite');
+            fiabDom.innerText = dataShots.fiabilite;
+            if(dataShots.fiabilite.includes('HAUTE')) fiabDom.style.background = 'var(--accent)';
+            if(dataShots.fiabilite.includes('MOYENNE')) fiabDom.style.background = '#f59e0b';
+            if(dataShots.fiabilite.includes('FAIBLE')) fiabDom.style.background = 'var(--danger)';
+
+            const shadowDom = document.getElementById('shadowDomination');
+            if (dataShots.shadow_market && !dataShots.shadow_market.erreur) {
+                shadowDom.style.display = 'block';
+                let edgeDom = dataShots.shadow_market.edge;
+                shadowDom.innerHTML = `Cote: ${dataShots.shadow_market.cote_saisie} | Edge: ${edgeDom}% <br> <span style="font-size:14px;">${dataShots.shadow_market.statut_shadow_market}</span>`;
+                shadowDom.style.color = edgeDom > 5 ? 'var(--accent)' : (edgeDom > 0 ? '#f59e0b' : 'var(--danger)');
+            } else { shadowDom.style.display = 'none'; }
+        }
+
+        // --- TIRS CADRÉS ---
+        if (dataShotsTarget.ensemble_final) {
+            document.getElementById('dominationTargetProbaFinale').innerText = dataShotsTarget.ensemble_final + '%';
+            const fiabDomT = document.getElementById('dominationTargetFiabilite');
+            fiabDomT.innerText = dataShotsTarget.fiabilite;
+            if(dataShotsTarget.fiabilite.includes('HAUTE')) fiabDomT.style.background = 'var(--accent)';
+            if(dataShotsTarget.fiabilite.includes('MOYENNE')) fiabDomT.style.background = '#f59e0b';
+            if(dataShotsTarget.fiabilite.includes('FAIBLE')) fiabDomT.style.background = 'var(--danger)';
+
+            const shadowDomT = document.getElementById('shadowDominationTarget');
+            if (dataShotsTarget.shadow_market && !dataShotsTarget.shadow_market.erreur) {
+                shadowDomT.style.display = 'block';
+                let edgeDomT = dataShotsTarget.shadow_market.edge;
+                shadowDomT.innerHTML = `Cote: ${dataShotsTarget.shadow_market.cote_saisie} | Edge: ${edgeDomT}% <br> <span style="font-size:14px;">${dataShotsTarget.shadow_market.statut_shadow_market}</span>`;
+                shadowDomT.style.color = edgeDomT > 5 ? 'var(--accent)' : (edgeDomT > 0 ? '#f59e0b' : 'var(--danger)');
+            } else { shadowDomT.style.display = 'none'; }
+        }
+
+        // --- CARTES SIMPLES ---
+        document.getElementById('totalCorners').innerText = `Moy: ${dataC.analyse_corners.total_attendu}`;
+        document.getElementById('totalCartons').innerText = `Moy: ${dataK.analyse_cartons.total_attendu}`;
+        document.getElementById('cornersProbs').innerHTML = genererBarres(dataC.analyse_corners, ['probabilite_plus_de_8_5', 'probabilite_plus_de_9_5'], ['+8.5 Corners', '+9.5 Corners']);
+        document.getElementById('cartonsProbs').innerHTML = genererBarres(dataK.analyse_cartons, ['probabilite_plus_de_3_5', 'probabilite_plus_de_4_5'], ['+3.5 Cartons', '+4.5 Cartons']);
+
+        // --- SCORES ---
+        let htHtml = ''; dataHT.top_scores_mi_temps.forEach((s, i) => { htHtml += `<div style="background:var(--bg-dark); padding:10px; border-radius:8px; width:30%; border: 1px solid ${i===0?'var(--accent)':'var(--border)'};"><div style="font-size:20px; font-weight:800; color:${i===0?'var(--accent)':'var(--text-main)'};">${s.score}</div><div style="font-size:12px; color:var(--text-muted);">${s.probabilite}%</div></div>`; });
+        document.getElementById('htScoresProbs').innerHTML = htHtml;
+
+        let ftHtml = ''; dataFT.top_scores_finaux.forEach((s, i) => { ftHtml += `<div style="background:var(--bg-dark); padding:10px; border-radius:8px; width:30%; border: 1px solid ${i===0?'var(--blue)':'var(--border)'};"><div style="font-size:20px; font-weight:800; color:${i===0?'var(--blue)':'var(--text-main)'};">${s.score}</div><div style="font-size:12px; color:var(--text-muted);">${s.probabilite}%</div></div>`; });
+        document.getElementById('ftScoresProbs').innerHTML = ftHtml;
+
+        document.getElementById('resultats').style.display = 'block';
+    } catch (e) { alert("Erreur de connexion."); }
+   
+}
 
         async function recalculerTirs(nouvelleCote) {
             if(!currentMatchId) return;
