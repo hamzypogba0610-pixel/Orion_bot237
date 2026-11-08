@@ -1076,6 +1076,7 @@ async def predict_ensemble_cards(match_id_local: int, arbitre_profil: str = "Nor
         ecart_type = np.std(liste_probas)
 
         modeles_proches = sum(1 for p in liste_probas if abs(p - moyenne_ensemble) <= 10)
+        proba_calibree_cards = calibrer_probabilite(moyenne_ensemble, ecart_type, modeles_proches)
         if modeles_proches >= 7: fiabilite = "HAUTE ✅"
         elif modeles_proches >= 5: fiabilite = "MOYENNE ⚠️"
         else: fiabilite = "FAIBLE ❌ (Divergence)"
@@ -1085,6 +1086,7 @@ async def predict_ensemble_cards(match_id_local: int, arbitre_profil: str = "Nor
         return {
             "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
             "marche": "Cartons (+4.5)",
+            "proba_calibree": round(proba_calibree_cards, 2),
             "moyennes_attendues": {
                 "simple": round(lambda_simple_total, 2),
                 "dixon_coles": round(lambda_dc_total, 2),
@@ -1104,6 +1106,7 @@ async def predict_ensemble_cards(match_id_local: int, arbitre_profil: str = "Nor
                 "markov": round(p_markov, 2)
             },
             "ensemble_final": round(moyenne_ensemble, 2),
+            "proba_calibree": round(proba_calibree_cards, 2), # <--- NOUVELLE LIGNE
             "ecart_type": round(ecart_type, 2),
             "fiabilite": fiabilite,
             "shadow_market": shadow_result
