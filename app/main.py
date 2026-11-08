@@ -15,7 +15,7 @@ from app.engine import (
     calc_markov_impact, calc_time_intensity, apply_copula_tail_dependence,
     calc_bivariate_poisson_matrix, calc_viterbi_state, apply_evt,
     calc_live_score_drift, calc_zero_inflated_poisson, calc_mmpp,
-    calc_live_par, calc_hamilton_regime, calc_hurst_exponent, calc_live_cards
+    calc_live_par, calc_hamilton_regime, calc_hurst_exponent, calc_live_cards, calibrer_probabilite
 )
 from datetime import datetime, timedelta
 import asyncio
@@ -797,6 +797,7 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
         # Moyenne pondérée (Les 8 premiers ont un poids de 1, les 5 nouveaux de 1.5)
         poids = [1]*8 + [1.5]*5
         moyenne_ensemble = np.average(liste_probas, weights=poids)
+        proba_calibree = calibrer_probabilite(moyenne_ensemble, ecart_type, modeles_proches)
         ecart_type = np.std(liste_probas)
 
         modeles_proches = sum(1 for p in liste_probas if abs(p - moyenne_ensemble) <= 10)
@@ -833,6 +834,8 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
                 "hurst": round(p_hurst, 2)
             },
             "ensemble_final": round(moyenne_ensemble, 2),
+            "ensemble_final": round(moyenne_ensemble, 2),
+"proba_calibree": round(proba_calibree, 2), # <--- NOUVELLE LIGNE
             "ecart_type": round(ecart_type, 2),
             "fiabilite": fiabilite,
             "shadow_market": shadow_result
