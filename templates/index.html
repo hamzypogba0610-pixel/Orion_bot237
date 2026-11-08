@@ -356,35 +356,47 @@
     const extTouches = document.getElementById('extTouches').value || 0;
 
     try {
-        // Appel au moteur pour les Fautes
+        // 1. Appel pour les Fautes
         const resFautes = await fetch(`/predict-fautes/${matchId}?dom_fautes=${domFautes}&ext_fautes=${extFautes}&cote=1.85`);
         const dataFautes = await resFautes.json();
 
-        if (dataFautes.erreur) {
-            alert("Erreur Fautes : " + dataFautes.erreur);
-        } else {
-            // Affichage dans la carte rouge
+        if (!dataFautes.erreur) {
             let affichageFautes = dataFautes.proba_calibree ? dataFautes.proba_calibree : dataFautes.ensemble_final;
             document.getElementById('fautesProbaFinale').innerText = affichageFautes + '%';
             
             const fiabFautes = document.getElementById('fautesFiabilite');
             fiabFautes.innerText = dataFautes.fiabilite;
-            if(dataFautes.fiabilite.includes('HAUTE')) fiabFautes.style.background = 'var(--accent)';
-            if(dataFautes.fiabilite.includes('MOYENNE')) fiabFautes.style.background = '#f59e0b';
-            if(dataFautes.fiabilite.includes('FAIBLE')) fiabFautes.style.background = 'var(--danger)';
+            fiabFautes.style.background = dataFautes.fiabilite.includes('HAUTE') ? 'var(--accent)' : (dataFautes.fiabilite.includes('MOYENNE') ? '#f59e0b' : 'var(--danger)');
 
             const shadowFautes = document.getElementById('shadowFautes');
             if (dataFautes.shadow_market && !dataFautes.shadow_market.erreur) {
                 shadowFautes.style.display = 'block';
-                let edge = dataFautes.shadow_market.edge;
-                shadowFautes.innerHTML = `Cote: ${dataFautes.shadow_market.cote_saisie} | Edge: ${edge}% <br> <span style="font-size:14px;">${dataFautes.shadow_market.statut_shadow_market}</span>`;
-                shadowFautes.style.color = edge > 5 ? 'var(--accent)' : (edge > 0 ? '#f59e0b' : 'var(--danger)');
+                shadowFautes.innerHTML = `Cote: ${dataFautes.shadow_market.cote_saisie} | Edge: ${dataFautes.shadow_market.edge}% <br> <span style="font-size:14px;">${dataFautes.shadow_market.statut_shadow_market}</span>`;
+                shadowFautes.style.color = dataFautes.shadow_market.edge > 0 ? 'var(--accent)' : 'var(--danger)';
             }
         }
 
-        // On fera la même chose pour les Touches juste après
-        alert("✅ Fautes calculées ! (Les Touches seront connectées à l'étape suivante)");
+        // 2. Appel pour les Touches
+        const resTouches = await fetch(`/predict-touches/${matchId}?dom_touches=${domTouches}&ext_touches=${extTouches}&cote=1.85`);
+        const dataTouches = await resTouches.json();
 
+        if (!dataTouches.erreur) {
+            let affichageTouches = dataTouches.proba_calibree ? dataTouches.proba_calibree : dataTouches.ensemble_final;
+            document.getElementById('touchesProbaFinale').innerText = affichageTouches + '%';
+            
+            const fiabTouches = document.getElementById('touchesFiabilite');
+            fiabTouches.innerText = dataTouches.fiabilite;
+            fiabTouches.style.background = dataTouches.fiabilite.includes('HAUTE') ? 'var(--accent)' : (dataTouches.fiabilite.includes('MOYENNE') ? '#f59e0b' : 'var(--danger)');
+
+            const shadowTouches = document.getElementById('shadowTouches');
+            if (dataTouches.shadow_market && !dataTouches.shadow_market.erreur) {
+                shadowTouches.style.display = 'block';
+                shadowTouches.innerHTML = `Cote: ${dataTouches.shadow_market.cote_saisie} | Edge: ${dataTouches.shadow_market.edge}% <br> <span style="font-size:14px;">${dataTouches.shadow_market.statut_shadow_market}</span>`;
+                shadowTouches.style.color = dataTouches.shadow_market.edge > 0 ? 'var(--accent)' : 'var(--danger)';
+            }
+        }
+
+        alert("✅ Fautes et Touches calculées avec succès !");
     } catch (e) {
         alert("Erreur de connexion avec le serveur.");
     }
