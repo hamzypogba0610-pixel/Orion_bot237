@@ -600,3 +600,25 @@ def calc_intervalle_confiance(liste_probas, z_score=1.96):
     borne_haute = min(99.0, moyenne + marge_erreur)
     
     return round(borne_basse, 2), round(borne_haute, 2)
+
+def calc_merton_jump_diffusion(lambda_base, ligne, proba_saut=0.05, intensite_saut=1.5):
+    """
+    Modèle 15 : Diffusion à Sauts de Merton.
+    Simule la probabilité qu'un événement imprévisible (choc) fasse exploser le compteur.
+    
+    lambda_base : la moyenne attendue (ex: 10 corners)
+    ligne : la ligne du pari (ex: 9.5)
+    proba_saut : la probabilité qu'un "choc" survienne (ex: 5% de chances)
+    intensite_saut : de combien le compteur augmente lors d'un choc (ex: x1.5)
+    """
+    # 1. Probabilité sans saut (loi de Poisson normale)
+    p_sans_saut = (1 - poisson.cdf(int(np.floor(ligne)), lambda_base)) * 100
+    
+    # 2. Probabilité avec saut (le compteur est multiplié par l'intensité du saut)
+    lambda_avec_saut = lambda_base * intensite_saut
+    p_avec_saut = (1 - poisson.cdf(int(np.floor(ligne)), lambda_avec_saut)) * 100
+    
+    # 3. On mélange les deux scénarios (Loi des probabilités totales)
+    p_finale = ((1 - proba_saut) * p_sans_saut) + (proba_saut * p_avec_saut)
+    
+    return p_finale
