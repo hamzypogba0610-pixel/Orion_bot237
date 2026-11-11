@@ -757,23 +757,18 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
         impact_markov_ext = calc_markov_impact(liste_corners_ext)
         lambda_markov_total = (((total_corners_dom / nb_dom) if nb_dom > 0 else moy_championnat / 2) * impact_markov_dom + ((total_corners_ext / nb_ext) if nb_ext > 0 else moy_championnat / 2) * impact_markov_ext) * impact_meteo
 
-        # 5. LES 5 NOUVELLES INNOVATIONS
+        # 5. LES INNOVATIONS
         ligne = 9.5
-        # ZIP
         p_zip = calc_zero_inflated_poisson(lambda_simple_total, ligne, zero_prob=0.05)
-        # MMPP
         etat = calc_viterbi_state(minute=45, score_dom=0, score_ext=0)
         lambda_mmpp = calc_mmpp(lambda_simple_total, etat)
         p_mmpp = calc_poisson(lambda_mmpp, ligne)
-        # PAR (simulé sur les 10 dernières minutes)
         recent_corners = liste_corners_dom[-3:] + liste_corners_ext[-3:] 
         p_par, _ = calc_live_par(recent_corners, temps_restant=10, ligne=2.5)
-        # Hamilton
         mult_ham_dom, _ = calc_hamilton_regime(liste_corners_dom)
         mult_ham_ext, _ = calc_hamilton_regime(liste_corners_ext)
         lambda_hamilton = (((total_corners_dom / nb_dom) if nb_dom > 0 else moy_championnat / 2) * mult_ham_dom + ((total_corners_ext / nb_ext) if nb_ext > 0 else moy_championnat / 2) * mult_ham_ext) * impact_meteo
         p_hamilton = calc_poisson(lambda_hamilton, ligne)
-        # Hurst
         hurst_val, _ = calc_hurst_exponent(liste_corners_dom + liste_corners_ext)
         p_hurst = calc_poisson(lambda_simple_total * (1 + (hurst_val - 0.5)), ligne)
 
@@ -787,29 +782,26 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
         p_kalman = calc_poisson(lambda_kalman_total, ligne)
         p_markov = calc_poisson(lambda_markov_total, ligne)
 
-        # 7. ENSEMBLE FINAL (13 MODÈLES)
-        # On donne un poids un peu plus fort aux innovations (ZIP et Hamilton)
+        # --- 7. NOUVEAU : MERTON JUMP DIFFUSION ---
+        p_merton = calc_merton_jump_diffusion(lambda_simple_total, ligne)
+
+        # 8. ENSEMBLE FINAL (15 MODÈLES)
         liste_probas = [
             p_poisson, p_nbinom, p_mc, p_dc, p_bayes, p_hawkes, p_kalman, p_markov,
-            p_zip, p_mmpp, p_par, p_hamilton, p_hurst
+            p_zip, p_mmpp, p_par, p_hamilton, p_hurst, p_merton
         ]
         
-        # Moyenne pondérée (Les 8 premiers ont un poids de 1, les 5 nouveaux de 1.5)
-        poids = [1]*8 + [1.5]*5
+        poids = [1]*8 + [1.5]*6
         moyenne_ensemble = np.average(liste_probas, weights=poids)
         ecart_type = np.std(liste_probas)
 
         modeles_proches = sum(1 for p in liste_probas if abs(p - moyenne_ensemble) <= 10)
-
-# C'est ici qu'on calcule la proba calibrée, une fois qu'on a tout
-        proba_calibree = calibrer_probabilite(moyenne_ensemble, ecart_type, modeles_proches)
-
         
-        
-        if modeles_proches >= 10: fiabilite = "HAUTE ✅"
-        elif modeles_proches >= 7: fiabilite = "MOYENNE ⚠️"
+        if modeles_proches >= 11: fiabilite = "HAUTE ✅"
+        elif modeles_proches >= 8: fiabilite = "MOYENNE ⚠️"
         else: fiabilite = "FAIBLE ❌ (Divergence)"
 
+        proba_calibree = calibrer_probabilite(moyenne_ensemble, ecart_type, modeles_proches)
         shadow_result = calc_shadow_market(moyenne_ensemble, cote)
 
         return {
@@ -835,11 +827,11 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
                 "mmpp": round(p_mmpp, 2),
                 "par": round(p_par, 2),
                 "hamilton": round(p_hamilton, 2),
-                "hurst": round(p_hurst, 2)
+                "hurst": round(p_hurst, 2),
+                "merton": round(p_merton, 2) # <--- NOUVEAU
             },
             "ensemble_final": round(moyenne_ensemble, 2),
-            "ensemble_final": round(moyenne_ensemble, 2),
-            "proba_calibree": round(proba_calibree, 2), # <--- NOUVELLE LIGNE
+            "proba_calibree": round(proba_calibree, 2),
             "ecart_type": round(ecart_type, 2),
             "fiabilite": fiabilite,
             "shadow_market": shadow_result
