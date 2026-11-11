@@ -266,6 +266,7 @@
     <div class="market-header"><span class="market-title" style="color: #10b981;">👟 Marché des Touches</span><span class="market-total" id="touchesFiabilite" style="background:#10b981; color:#fff;">...</span></div>
     <div style="text-align: center; margin-bottom: 15px;">
         <div style="font-size: 32px; font-weight: 800; color: #10b981;" id="touchesProbaFinale">--%</div>
+        <div style="font-size: 12px; color: #94a3b8; font-weight: bold; margin-top: 5px;" id="touchesFourchetteDisplay">Fourchette: --% à --%</div>
         <div style="font-size: 12px; color: var(--text-muted);" id="ligneTouchesDisplay">Probabilité +950.5 Touches (Ensemble)</div>
     </div>
     <div id="shadowTouches" style="margin-bottom: 15px; font-size: 13px; text-align: center; font-weight: bold;"></div>
@@ -414,6 +415,9 @@
         if (!dataTouches.erreur) {
             let affichageTouches = dataTouches.proba_calibree ? dataTouches.proba_calibree : dataTouches.ensemble_final;
             document.getElementById('touchesProbaFinale').innerText = affichageTouches + '%';
+            if (dataTouches.fourchette_basse !== undefined) {
+    document.getElementById('touchesFourchetteDisplay').innerText = `Fourchette: ${dataTouches.fourchette_basse}% à ${dataTouches.fourchette_haute}%`;
+            }
             
             // NOUVEAU : On met à jour le texte avec la ligne saisie
             document.getElementById('ligneTouchesDisplay').innerText = `Probabilité +${ligneTouches} Touches (Ensemble)`;
