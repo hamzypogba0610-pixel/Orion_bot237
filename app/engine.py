@@ -580,3 +580,23 @@ def calibrer_probabilite(proba_brute, ecart_type, nb_modeles_proches):
         
     # On s'assure de rester entre 1% et 99%
     return max(1.0, min(99.0, proba_calibree))
+
+def calc_intervalle_confiance(liste_probas, z_score=1.96):
+    """
+    Calcule la fourchette de probabilité (intervalle de confiance à 95%).
+    Utilise l'écart-type de l'ensemble des modèles.
+    """
+    moyenne = np.mean(liste_probas)
+    ecart_type = np.std(liste_probas)
+    n = len(liste_probas)
+    
+    # Marge d'erreur (Erreur standard de la moyenne multipliée par le Z-score)
+    if n > 1:
+        marge_erreur = z_score * (ecart_type / np.sqrt(n))
+    else:
+        marge_erreur = 5.0 # Marge par défaut si un seul modèle
+        
+    borne_basse = max(1.0, moyenne - marge_erreur)
+    borne_haute = min(99.0, moyenne + marge_erreur)
+    
+    return round(borne_basse, 2), round(borne_haute, 2)
