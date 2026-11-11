@@ -762,15 +762,19 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
         # 5. LES INNOVATIONS
         ligne = 9.5
         p_zip = calc_zero_inflated_poisson(lambda_simple_total, ligne, zero_prob=0.05)
+        
         etat = calc_viterbi_state(minute=45, score_dom=0, score_ext=0)
         lambda_mmpp = calc_mmpp(lambda_simple_total, etat)
         p_mmpp = calc_poisson(lambda_mmpp, ligne)
+        
         recent_corners = liste_corners_dom[-3:] + liste_corners_ext[-3:] 
         p_par, _ = calc_live_par(recent_corners, temps_restant=10, ligne=2.5)
+        
         mult_ham_dom, _ = calc_hamilton_regime(liste_corners_dom)
         mult_ham_ext, _ = calc_hamilton_regime(liste_corners_ext)
         lambda_hamilton = (((total_corners_dom / nb_dom) if nb_dom > 0 else moy_championnat / 2) * mult_ham_dom + ((total_corners_ext / nb_ext) if nb_ext > 0 else moy_championnat / 2) * mult_ham_ext) * impact_meteo
         p_hamilton = calc_poisson(lambda_hamilton, ligne)
+        
         hurst_val, _ = calc_hurst_exponent(liste_corners_dom + liste_corners_ext)
         p_hurst = calc_poisson(lambda_simple_total * (1 + (hurst_val - 0.5)), ligne)
 
@@ -784,18 +788,19 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
         p_kalman = calc_poisson(lambda_kalman_total, ligne)
         p_markov = calc_poisson(lambda_markov_total, ligne)
 
-        # --- 7. NOUVEAU : MERTON JUMP DIFFUSION ---
+        # 7. NOUVEAU : MERTON JUMP DIFFUSION
         p_merton = calc_merton_jump_diffusion(lambda_simple_total, ligne)
-        
-        # --- 8. NOUVEAU : PARTICLE FILTER ---
-p_particle = calc_particle_filter(lambda_simple_total, ligne)
 
-        # 8. ENSEMBLE FINAL (15 MODÈLES)
+        # 8. NOUVEAU : PARTICLE FILTER
+        p_particle = calc_particle_filter(lambda_simple_total, ligne)
+
+        # 9. ENSEMBLE FINAL (16 MODÈLES)
         liste_probas = [
             p_poisson, p_nbinom, p_mc, p_dc, p_bayes, p_hawkes, p_kalman, p_markov,
             p_zip, p_mmpp, p_par, p_hamilton, p_hurst, p_merton, p_particle
         ]
         
+        # 8 modèles de base (poids 1) + 7 innovations (poids 1.5)
         poids = [1]*8 + [1.5]*7
         moyenne_ensemble = np.average(liste_probas, weights=poids)
         ecart_type = np.std(liste_probas)
@@ -833,7 +838,7 @@ p_particle = calc_particle_filter(lambda_simple_total, ligne)
                 "par": round(p_par, 2),
                 "hamilton": round(p_hamilton, 2),
                 "hurst": round(p_hurst, 2),
-                "merton": round(p_merton, 2)
+                "merton": round(p_merton, 2),
                 "particle_filter": round(p_particle, 2)
             },
             "ensemble_final": round(moyenne_ensemble, 2),
