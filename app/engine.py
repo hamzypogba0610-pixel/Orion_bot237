@@ -641,3 +641,63 @@ def calc_particle_filter(lambda_base, ligne, n_particules=1000):
     proba_lissee = (proba_finale * 0.95) + (50.0 * 0.05)
     
     return proba_lissee
+
+from scipy.stats import skellam # Importation nécessaire pour Skellam
+
+def calc_skellam(score_dom, score_ext, lambda_dom, lambda_ext):
+    """
+    Modèle Skellam : Calcule la probabilité exacte d'un score en se basant 
+    sur la différence de buts.
+    """
+    diff_buts = score_dom - score_ext
+    proba = skellam.pmf(diff_buts, lambda_dom, lambda_ext)
+    return proba
+
+def calc_momentum(lambda_dom, lambda_ext, score_dom, score_ext, minute):
+    """
+    Modèle de Momentum : Ajuste les Lambdas si une équipe marque.
+    Si une équipe mène, l'autre pousse (Lambda augmente pour les deux).
+    """
+    ecart = abs(score_dom - score_ext)
+    
+    if minute < 30:
+        return lambda_dom, lambda_ext # Pas encore de vrai momentum
+        
+    multiplicateur = 1.0
+    if ecart == 1:
+        multiplicateur = 1.15 # Match serré, tout le monde pousse
+    elif ecart == 0 and minute > 60:
+        multiplicateur = 1.25 # 0-0 ou 1-1 en fin de match, ça s'ouvre
+        
+    return lambda_dom * multiplicateur, lambda_ext * multiplicateur
+
+def calc_master_score_matrix(lambda_dom, lambda_ext, max_buts=5, minute=45):
+    """
+    LA COUCHE HYBRIDE FINALE : Combine Bivariate, Skellam et Momentum.
+    """
+    # 1. Matrice de base (Bivariate Poisson + Dixon-Coles)
+    matrice_base = calc_bivariate_poisson_matrix(lambda_dom, lambda_ext, max_buts)
+    
+    scores_finaux = []
+    
+    for s in matrice_base:
+        score_dom, score_ext = map(int, s["score"].split("-"))
+        proba_base = s["proba"]
+        
+        # 2. Ajout du Skellam
+        proba_skellam = calc_skellam(score_dom, score_ext, lambda_dom, lambda_ext)
+        
+        # 3. Ajout du Momentum (on ajuste les lambdas pour ce score)
+        l_dom_mom, l_ext_mom = calc_momentum(lambda_dom, lambda_ext, score_dom, score_ext, minute)
+        # On recalcule la proba avec les lambdas ajustés (approximation)
+        proba_momentum = (poisson.pmf(score_dom, l_dom_mom) * poisson.pmf(score_ext, l_ext_mom))
+        
+        # 4. Fusion Hybride (Moyenne pondérée)
+        # On donne 50% au Bivariate (déjà très bon), 25% au Skellam, 25% au Momentum
+        proba_finale = (proba_base * 0.50) + (proba_skellam * 0.25) + (proba_momentum * 0.25)
+        
+        scores_finaux.append({"score": f"{score_dom}-{score_ext}", "proba": proba_finale})
+        
+    # On re-trie par probabilité
+    scores_finaux.sort(key=lambda x: x["proba"], reverse=True)
+    return scores_finaux
