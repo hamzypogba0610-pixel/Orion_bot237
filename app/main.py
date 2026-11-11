@@ -807,8 +807,8 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
 
         modeles_proches = sum(1 for p in liste_probas if abs(p - moyenne_ensemble) <= 10)
         
-        if modeles_proches >= 11: fiabilite = "HAUTE ✅"
-        elif modeles_proches >= 8: fiabilite = "MOYENNE ⚠️"
+        if modeles_proches >= 9: fiabilite = "HAUTE ✅"
+        elif modeles_proches >= 6: fiabilite = "MOYENNE ⚠️"
         else: fiabilite = "FAIBLE ❌ (Divergence)"
 
         proba_calibree = calibrer_probabilite(moyenne_ensemble, ecart_type, modeles_proches)
