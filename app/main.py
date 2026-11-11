@@ -17,7 +17,7 @@ from app.engine import (
     calc_live_score_drift, calc_zero_inflated_poisson, calc_mmpp,
     calc_live_par, calc_hamilton_regime, calc_hurst_exponent, 
     calc_live_cards, calc_merton_jump_diffusion,
-    calibrer_probabilite, calc_intervalle_confiance, calc_particle_filter
+    calibrer_probabilite, calc_intervalle_confiance, calc_particle_filter, calc_master_score_matrix
 )
 from datetime import datetime, timedelta
 import asyncio
@@ -387,29 +387,15 @@ async def predict_ht_score(match_id_local: int):
             elif m.equipe_exterieur == match.equipe_exterieur and m.score_exterieur is not None: buts_ext += m.score_exterieur; nb_ext += 1
         moy_buts_ext = (buts_ext / nb_ext) if nb_ext > 0 else 1.2
 
-        # 2. Couches Magiques
-        # Intensité temporelle
+        # 2. Application du Master Score Engine (mi-temps = minute 45)
         facteur_temps = calc_time_intensity(minute=45, lambda_total_match=(moy_buts_dom + moy_buts_ext))
-        
-        # Viterbi (État du match à la mi-temps, score initial 0-0)
-        etat_viterbi = calc_viterbi_state(minute=45, score_dom=0, score_ext=0)
-        
-        lambda_dom_ajuste = (moy_buts_dom / 2) * facteur_temps * etat_viterbi
-        lambda_ext_ajuste = (moy_buts_ext / 2) * facteur_temps * etat_viterbi
+        lambda_dom_ajuste = (moy_buts_dom / 2) * facteur_temps
+        lambda_ext_ajuste = (moy_buts_ext / 2) * facteur_temps
 
-        matrice = calc_bivariate_poisson_matrix(lambda_dom_ajuste, lambda_ext_ajuste, max_buts=3)
+        # On utilise la nouvelle matrice hybride
+        matrice_hybride = calc_master_score_matrix(lambda_dom_ajuste, lambda_ext_ajuste, max_buts=4, minute=45)
         
-        scores_ajustes = []
-        for s in matrice:
-            i, j = map(int, s["score"].split("-"))
-            # Application de la copule
-            proba_copule = apply_copula_tail_dependence(i, j, s["proba"], lambda_dom_ajuste + lambda_ext_ajuste)
-            # Application de l'EVT
-            proba_finale = apply_evt(i, j, proba_copule, lambda_dom_ajuste + lambda_ext_ajuste)
-            scores_ajustes.append({"score": s["score"], "proba": proba_finale})
-            
-        scores_ajustes.sort(key=lambda x: x["proba"], reverse=True)
-        top_3 = scores_ajustes[:3]
+        top_3 = matrice_hybride[:3]
 
         return {
             "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
@@ -592,7 +578,7 @@ async def predict_ft_score(match_id_local: int):
         match = db.query(Match).filter(Match.id == match_id_local).first()
         if not match: return {"erreur": "Match introuvable."}
 
-        # 1. Moyennes de buts
+        # 1. Moyennes de buts (même chose que HT)
         stats_dom = db.query(MatchStat, Match).join(Match, MatchStat.match_id == Match.id).filter((Match.equipe_domicile == match.equipe_domicile) | (Match.equipe_exterieur == match.equipe_domicile)).all()
         buts_dom, nb_dom = 0, 0
         for stat, m in stats_dom:
@@ -607,30 +593,15 @@ async def predict_ft_score(match_id_local: int):
             elif m.equipe_exterieur == match.equipe_exterieur and m.score_exterieur is not None: buts_ext += m.score_exterieur; nb_ext += 1
         moy_buts_ext = (buts_ext / nb_ext) if nb_ext > 0 else 1.2
 
-        # 2. Application des Couches Magiques
-        # Intensité temporelle (90 min)
+        # 2. Application du Master Score Engine (fin de match = minute 90)
         facteur_temps = calc_time_intensity(minute=90, lambda_total_match=(moy_buts_dom + moy_buts_ext))
-        
-        # Viterbi (État du match à la 90ème, score initial 0-0)
-        etat_viterbi = calc_viterbi_state(minute=90, score_dom=0, score_ext=0)
-        
-        lambda_dom_ajuste = moy_buts_dom * facteur_temps * etat_viterbi
-        lambda_ext_ajuste = moy_buts_ext * facteur_temps * etat_viterbi
+        lambda_dom_ajuste = moy_buts_dom * facteur_temps
+        lambda_ext_ajuste = moy_buts_ext * facteur_temps
 
-        # Matrice Bivariate Poisson (Dixon-Coles)
-        matrice = calc_bivariate_poisson_matrix(lambda_dom_ajuste, lambda_ext_ajuste, max_buts=5)
+        # On utilise la nouvelle matrice hybride
+        matrice_hybride = calc_master_score_matrix(lambda_dom_ajuste, lambda_ext_ajuste, max_buts=5, minute=90)
         
-        scores_ajustes = []
-        for s in matrice:
-            i, j = map(int, s["score"].split("-"))
-            # Application de la copule
-            proba_copule = apply_copula_tail_dependence(i, j, s["proba"], lambda_dom_ajuste + lambda_ext_ajuste)
-            # Application de l'EVT (Scores extrêmes)
-            proba_finale = apply_evt(i, j, proba_copule, lambda_dom_ajuste + lambda_ext_ajuste)
-            scores_ajustes.append({"score": s["score"], "proba": proba_finale})
-            
-        scores_ajustes.sort(key=lambda x: x["proba"], reverse=True)
-        top_3 = scores_ajustes[:3]
+        top_3 = matrice_hybride[:3]
 
         return {
             "match": f"{match.equipe_domicile} vs {match.equipe_exterieur}",
