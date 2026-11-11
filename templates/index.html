@@ -127,40 +127,44 @@
                 </div>
             <!-- NOUVEAU : SAISIE MANUELLE FAUTES & TOUCHES -->
 <div class="card" style="border: 2px solid #f59e0b; background: linear-gradient(135deg, #1e293b, #0f172a); margin-top: 20px;">
-    <h3 style="color: #f59e0b; margin-bottom: 10px; text-align: center;">✍️ Saisie Manuelle (7 derniers matchs)</h3>
-    <p style="font-size: 12px; color: var(--text-muted); text-align: center; margin-bottom: 15px;">Entre les moyennes par match pour que le bot calcule les Fautes et les Touches.</p>
+    <h3 style="color: #f59e0b; margin-bottom: 10px; text-align: center;">✍️ Saisie Manuelle (Toute la saison)</h3>
+    <p style="font-size: 12px; color: var(--text-muted); text-align: center; margin-bottom: 15px;">Entre les totaux de la saison, le bot calculera les moyennes.</p>
     
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+        <!-- DOMICILE -->
         <div>
             <h4 style="font-size: 13px; color: var(--text-main); margin-bottom: 8px;">🏠 Équipe Domicile</h4>
-            <div style="margin-bottom: 10px;"><label>Moy. Fautes</label><input type="number" id="domFautes" value="12.5" step="0.1"></div>
-            <div><label>Moy. Touches</label><input type="number" id="domTouches" value="450" step="1"></div>
+            <div style="margin-bottom: 8px;"><label>Nb. Matchs (Dom)</label><input type="number" id="domMatchs" value="10" step="1"></div>
+            <div style="margin-bottom: 8px;"><label>Total Fautes (Dom)</label><input type="number" id="domTotalFautes" value="120" step="1"></div>
+            <div><label>Total Touches (Dom)</label><input type="number" id="domTotalTouches" value="4500" step="1"></div>
         </div>
+        <!-- EXTERIEUR -->
         <div>
             <h4 style="font-size: 13px; color: var(--text-main); margin-bottom: 8px;">✈️ Équipe Extérieur</h4>
-            <div style="margin-bottom: 10px;"><label>Moy. Fautes</label><input type="number" id="extFautes" value="11.0" step="0.1"></div>
-            <div><label>Moy. Touches</label><input type="number" id="extTouches" value="480" step="1"></div>
+            <div style="margin-bottom: 8px;"><label>Nb. Matchs (Ext)</label><input type="number" id="extMatchs" value="10" step="1"></div>
+            <div style="margin-bottom: 8px;"><label>Total Fautes (Ext)</label><input type="number" id="extTotalFautes" value="110" step="1"></div>
+            <div><label>Total Touches (Ext)</label><input type="number" id="extTotalTouches" value="4800" step="1"></div>
         </div>
     </div>
 
-    <!-- NOUVEAU : LIGNE ET COTE -->
+    <!-- LIGNE ET COTE -->
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: var(--bg-dark); padding: 10px; border-radius: 8px; margin-bottom: 15px;">
         <div>
-            <label>Ligne Fautes (ex: 25.5)</label>
+            <label>Ligne Fautes</label>
             <input type="number" step="0.5" id="ligneFautes" value="25.5">
             <label style="margin-top: 5px;">Cote Fautes</label>
             <input type="number" step="0.01" id="coteFautes" value="1.85">
         </div>
         <div>
-            <label>Ligne Touches (ex: 950.5)</label>
+            <label>Ligne Touches</label>
             <input type="number" step="0.5" id="ligneTouches" value="950.5">
             <label style="margin-top: 5px;">Cote Touches</label>
             <input type="number" step="0.01" id="coteTouches" value="1.85">
         </div>
     </div>
 
-    <button onclick="analyserManuel()" style="background-color: #f59e0b; color: #000;">⚡ Analyser Fautes & Touches</button>
-</div>
+      <button onclick="analyserManuel()" style="background-color: #f59e0b; color: #000;">⚡ Analyser Fautes & Touches</button>
+   </div>
                 
             <!-- ZONE DES RÉSULTATS -->
             <div id="resultats" style="display: none;">
@@ -369,13 +373,22 @@
     const matchId = document.getElementById('matchId').value;
     if(!matchId) { alert("Veuillez d'abord sélectionner un match dans la liste déroulante."); return; }
 
-    // On lit les moyennes
-    const domFautes = document.getElementById('domFautes').value || 0;
-    const domTouches = document.getElementById('domTouches').value || 0;
-    const extFautes = document.getElementById('extFautes').value || 0;
-    const extTouches = document.getElementById('extTouches').value || 0;
-    
-    // On lit la ligne et la cote saisies
+    // 1. On récupère les totaux et le nombre de matchs
+    const domMatchs = parseFloat(document.getElementById('domMatchs').value) || 1;
+    const domTotalFautes = parseFloat(document.getElementById('domTotalFautes').value) || 0;
+    const domTotalTouches = parseFloat(document.getElementById('domTotalTouches').value) || 0;
+
+    const extMatchs = parseFloat(document.getElementById('extMatchs').value) || 1;
+    const extTotalFautes = parseFloat(document.getElementById('extTotalFautes').value) || 0;
+    const extTotalTouches = parseFloat(document.getElementById('extTotalTouches').value) || 0;
+
+    // 2. ON CALCULE LES MOYENNES ICI (Total / Nombre de matchs)
+    const domFautes = domTotalFautes / domMatchs;
+    const domTouches = domTotalTouches / domMatchs;
+    const extFautes = extTotalFautes / extMatchs;
+    const extTouches = extTotalTouches / extMatchs;
+
+    // 3. On lit la ligne et la cote
     const ligneFautes = document.getElementById('ligneFautes').value || 25.5;
     const coteFautes = document.getElementById('coteFautes').value || 1.85;
     const ligneTouches = document.getElementById('ligneTouches').value || 950.5;
@@ -389,12 +402,11 @@
         if (!dataFautes.erreur) {
             let affichageFautes = dataFautes.proba_calibree ? dataFautes.proba_calibree : dataFautes.ensemble_final;
             document.getElementById('fautesProbaFinale').innerText = affichageFautes + '%';
-            if (dataFautes.fourchette_basse !== undefined) {
-    document.getElementById('fautesFourchetteDisplay').innerText = `Fourchette: ${dataFautes.fourchette_basse}% à ${dataFautes.fourchette_haute}%`;
-    }
-            
-            // NOUVEAU : On met à jour le texte avec la ligne saisie
             document.getElementById('ligneFautesDisplay').innerText = `Probabilité +${ligneFautes} Fautes (Ensemble)`;
+
+            if (dataFautes.fourchette_basse !== undefined) {
+                document.getElementById('fautesFourchetteDisplay').innerText = `Fourchette: ${dataFautes.fourchette_basse}% à ${dataFautes.fourchette_haute}%`;
+            }
 
             const fiabFautes = document.getElementById('fautesFiabilite');
             fiabFautes.innerText = dataFautes.fiabilite;
@@ -415,12 +427,11 @@
         if (!dataTouches.erreur) {
             let affichageTouches = dataTouches.proba_calibree ? dataTouches.proba_calibree : dataTouches.ensemble_final;
             document.getElementById('touchesProbaFinale').innerText = affichageTouches + '%';
-            if (dataTouches.fourchette_basse !== undefined) {
-    document.getElementById('touchesFourchetteDisplay').innerText = `Fourchette: ${dataTouches.fourchette_basse}% à ${dataTouches.fourchette_haute}%`;
-            }
-            
-            // NOUVEAU : On met à jour le texte avec la ligne saisie
             document.getElementById('ligneTouchesDisplay').innerText = `Probabilité +${ligneTouches} Touches (Ensemble)`;
+
+            if (dataTouches.fourchette_basse !== undefined) {
+                document.getElementById('touchesFourchetteDisplay').innerText = `Fourchette: ${dataTouches.fourchette_basse}% à ${dataTouches.fourchette_haute}%`;
+            }
 
             const fiabTouches = document.getElementById('touchesFiabilite');
             fiabTouches.innerText = dataTouches.fiabilite;
