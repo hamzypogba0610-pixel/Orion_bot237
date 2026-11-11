@@ -719,27 +719,53 @@ if (dataShotsTarget.ensemble_final) {
 
         let ftHtml = ''; dataFT.top_scores_finaux.forEach((s, i) => { ftHtml += `<div style="background:var(--bg-dark); padding:10px; border-radius:8px; width:30%; border: 1px solid ${i===0?'var(--blue)':'var(--border)'};"><div style="font-size:20px; font-weight:800; color:${i===0?'var(--blue)':'var(--text-main)'};">${s.score}</div><div style="font-size:12px; color:var(--text-muted);">${s.probabilite}%</div></div>`; });
         document.getElementById('ftScoresProbs').innerHTML = ftHtml;
-        // --- MOTEUR DE DÉCISION (LE VERDICT) ---
+    // --- MOTEUR DE DÉCISION (LE VERDICT) ---
 let opportunites = [];
 
-// On vérifie chaque marché
+// Fonction pour calculer un score de confiance de 0 à 100
+function calculerScoreConfiance(edge, fiabilite) {
+    let score = 50; // Base
+    score += (edge * 1.5); // L'edge booste le score
+    if (fiabilite.includes('HAUTE')) score += 20;
+    else if (fiabilite.includes('MOYENNE')) score += 5;
+    return Math.min(100, Math.max(0, Math.round(score)));
+}
+
+// On vérifie chaque marché (on ignore les fiabilités FAIBLES)
 if (dataEnsemble.ensemble_final && !dataEnsemble.fiabilite.includes('FAIBLE') && dataEnsemble.shadow_market && dataEnsemble.shadow_market.edge > 0) {
-    opportunites.push({ nom: "Corners (+9.5)", edge: dataEnsemble.shadow_market.edge, cote: dataEnsemble.shadow_market.cote_saisie, fiabilite: dataEnsemble.fiabilite });
+    opportunites.push({ nom: "Corners (+9.5)", edge: dataEnsemble.shadow_market.edge, cote: dataEnsemble.shadow_market.cote_saisie, fiabilite: dataEnsemble.fiabilite, score: calculerScoreConfiance(dataEnsemble.shadow_market.edge, dataEnsemble.fiabilite) });
 }
 if (dataEnsembleCards.ensemble_final && !dataEnsembleCards.fiabilite.includes('FAIBLE') && dataEnsembleCards.shadow_market && dataEnsembleCards.shadow_market.edge > 0) {
-    opportunites.push({ nom: "Cartons (+4.5)", edge: dataEnsembleCards.shadow_market.edge, cote: dataEnsembleCards.shadow_market.cote_saisie, fiabilite: dataEnsembleCards.fiabilite });
+    opportunites.push({ nom: "Cartons (+4.5)", edge: dataEnsembleCards.shadow_market.edge, cote: dataEnsembleCards.shadow_market.cote_saisie, fiabilite: dataEnsembleCards.fiabilite, score: calculerScoreConfiance(dataEnsembleCards.shadow_market.edge, dataEnsembleCards.fiabilite) });
 }
 if (dataShots.ensemble_final && !dataShots.fiabilite.includes('FAIBLE') && dataShots.shadow_market && dataShots.shadow_market.edge > 0) {
-    opportunites.push({ nom: "Tirs (+22.5)", edge: dataShots.shadow_market.edge, cote: dataShots.shadow_market.cote_saisie, fiabilite: dataShots.fiabilite });
+    opportunites.push({ nom: "Tirs (+22.5)", edge: dataShots.shadow_market.edge, cote: dataShots.shadow_market.cote_saisie, fiabilite: dataShots.fiabilite, score: calculerScoreConfiance(dataShots.shadow_market.edge, dataShots.fiabilite) });
 }
 if (dataShotsTarget.ensemble_final && !dataShotsTarget.fiabilite.includes('FAIBLE') && dataShotsTarget.shadow_market && dataShotsTarget.shadow_market.edge > 0) {
-    opportunites.push({ nom: "Tirs Cadrés (+8.5)", edge: dataShotsTarget.shadow_market.edge, cote: dataShotsTarget.shadow_market.cote_saisie, fiabilite: dataShotsTarget.fiabilite });
+    opportunites.push({ nom: "Tirs Cadrés (+8.5)", edge: dataShotsTarget.shadow_market.edge, cote: dataShotsTarget.shadow_market.cote_saisie, fiabilite: dataShotsTarget.fiabilite, score: calculerScoreConfiance(dataShotsTarget.shadow_market.edge, dataShotsTarget.fiabilite) });
 }
 
 const banner = document.getElementById('verdictBanner');
 banner.style.display = 'block';
 
 if (opportunites.length > 0) {
+    opportunites.sort((a, b) => b.score - a.score); // On trie par le meilleur score
+    let best = opportunites[0];
+    
+    let color = best.score >= 75 ? 'var(--accent)' : '#f59e0b'; // Vert si fort, Orange si moyen
+    banner.style.background = best.score >= 75 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)';
+    banner.style.border = `2px solid ${color}`;
+    banner.style.color = color;
+    
+    banner.innerHTML = `🎯 PARI RECOMMANDÉ :<br>
+    <span style="font-size: 20px;">${best.nom}</span><br>
+    <span style="font-size: 14px; color: #fff;">Cote: ${best.cote} | Confiance: ${best.score}/100</span>`;
+} else {
+    banner.style.background = 'rgba(239, 68, 68, 0.15)';
+    banner.style.border = '2px solid var(--danger)';
+    banner.style.color = 'var(--danger)';
+    banner.innerHTML = `🚫 AUCUN PARI RECOMMANDÉ<br><span style="font-size: 13px; color: #fff; font-weight: normal;">Le bookmaker a raison ou la fiabilité est trop faible.</span>`;
+    }
     // On trie pour avoir le meilleur Edge en premier
     opportunites.sort((a, b) => b.edge - a.edge);
     let best = opportunites[0];
