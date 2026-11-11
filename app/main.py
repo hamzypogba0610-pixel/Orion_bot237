@@ -15,7 +15,7 @@ from app.engine import (
     calc_markov_impact, calc_time_intensity, apply_copula_tail_dependence,
     calc_bivariate_poisson_matrix, calc_viterbi_state, apply_evt,
     calc_live_score_drift, calc_zero_inflated_poisson, calc_mmpp,
-    calc_live_par, calc_hamilton_regime, calc_hurst_exponent, calc_live_cards, calibrer_probabilite
+    calc_live_par, calc_hamilton_regime, calc_hurst_exponent, calc_live_cards,calc_intervalle_confiance , calibrer_probabilite
 )
 from datetime import datetime, timedelta
 import asyncio
@@ -839,7 +839,7 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
             },
             "ensemble_final": round(moyenne_ensemble, 2),
             "ensemble_final": round(moyenne_ensemble, 2),
-"proba_calibree": round(proba_calibree, 2), # <--- NOUVELLE LIGNE
+            "proba_calibree": round(proba_calibree, 2), # <--- NOUVELLE LIGNE
             "ecart_type": round(ecart_type, 2),
             "fiabilite": fiabilite,
             "shadow_market": shadow_result
@@ -1883,6 +1883,7 @@ async def predict_fautes(match_id_local: int, dom_fautes: float, ext_fautes: flo
 
         liste_probas = [p_poisson, p_nbinom, p_mc, p_zip, p_mmpp, p_hamilton, p_hurst]
         moyenne_ensemble = np.mean(liste_probas)
+        borne_basse, borne_haute = calc_intervalle_confiance(liste_probas)
         ecart_type = np.std(liste_probas)
 
         modeles_proches = sum(1 for p in liste_probas if abs(p - moyenne_ensemble) <= 10)
@@ -1900,6 +1901,8 @@ async def predict_fautes(match_id_local: int, dom_fautes: float, ext_fautes: flo
             "marche": f"Fautes (+{ligne})",
             "ensemble_final": round(moyenne_ensemble, 2),
             "proba_calibree": round(proba_calibree, 2),
+            "fourchette_basse": borne_basse,
+            "fourchette_haute": borne_haute,
             "fiabilite": fiabilite,
             "shadow_market": shadow_result
         }
