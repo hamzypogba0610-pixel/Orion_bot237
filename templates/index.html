@@ -767,6 +767,68 @@
         }
 
         document.getElementById('resultats').style.display = 'block';
+        // --- AJOUT AUTOMATIQUE DES FAUTES ET TOUCHES (Si remplies) ---
+const domMatchsVal = parseFloat(document.getElementById('domMatchs').value) || 0;
+if (domMatchsVal > 0) {
+    const domMatchs = domMatchsVal;
+    const domTotalFautes = parseFloat(document.getElementById('domTotalFautes').value) || 0;
+    const domTotalTouches = parseFloat(document.getElementById('domTotalTouches').value) || 0;
+    const extMatchs = parseFloat(document.getElementById('extMatchs').value) || 1;
+    const extTotalFautes = parseFloat(document.getElementById('extTotalFautes').value) || 0;
+    const extTotalTouches = parseFloat(document.getElementById('extTotalTouches').value) || 0;
+
+    const domFautes = domTotalFautes / domMatchs;
+    const domTouches = domTotalTouches / domMatchs;
+    const extFautes = extTotalFautes / extMatchs;
+    const extTouches = extTotalTouches / extMatchs;
+
+    const ligneFautes = document.getElementById('ligneFautes').value || 25.5;
+    const coteFautes = document.getElementById('coteFautes').value || 1.85;
+    const ligneTouches = document.getElementById('ligneTouches').value || 950.5;
+    const coteTouches = document.getElementById('coteTouches').value || 1.85;
+
+    // Calcul Fautes
+    const resF = await fetch(`/predict-fautes/${matchId}?dom_fautes=${domFautes}&ext_fautes=${extFautes}&ligne=${ligneFautes}&cote=${coteFautes}`);
+    const dataF = await resF.json();
+    if (!dataF.erreur) {
+        let affF = dataF.proba_calibree ? dataF.proba_calibree : dataF.ensemble_final;
+        document.getElementById('fautesProbaFinale').innerText = affF + '%';
+        document.getElementById('ligneFautesDisplay').innerText = `Probabilité +${ligneFautes} Fautes (Ensemble)`;
+        if (dataF.fourchette_basse) document.getElementById('fautesFourchetteDisplay').innerText = `Fourchette: ${dataF.fourchette_basse}% à ${dataF.fourchette_haute}%`;
+        
+        const fiabF = document.getElementById('fautesFiabilite');
+        fiabF.innerText = dataF.fiabilite;
+        fiabF.style.background = dataF.fiabilite.includes('HAUTE') ? 'var(--accent)' : (dataF.fiabilite.includes('MOYENNE') ? '#f59e0b' : 'var(--danger)');
+        
+        const shadowF = document.getElementById('shadowFautes');
+        if (dataF.shadow_market && !dataF.shadow_market.erreur) {
+            shadowF.style.display = 'block';
+            shadowF.innerHTML = `Cote: ${dataF.shadow_market.cote_saisie} | Edge: ${dataF.shadow_market.edge}% <br> <span style="font-size:14px;">${dataF.shadow_market.statut_shadow_market}</span>`;
+            shadowF.style.color = dataF.shadow_market.edge > 0 ? 'var(--accent)' : 'var(--danger)';
+        }
+    }
+
+    // Calcul Touches
+    const resT = await fetch(`/predict-touches/${matchId}?dom_touches=${domTouches}&ext_touches=${extTouches}&ligne=${ligneTouches}&cote=${coteTouches}`);
+    const dataT = await resT.json();
+    if (!dataT.erreur) {
+        let affT = dataT.proba_calibree ? dataT.proba_calibree : dataT.ensemble_final;
+        document.getElementById('touchesProbaFinale').innerText = affT + '%';
+        document.getElementById('ligneTouchesDisplay').innerText = `Probabilité +${ligneTouches} Touches (Ensemble)`;
+        if (dataT.fourchette_basse) document.getElementById('touchesFourchetteDisplay').innerText = `Fourchette: ${dataT.fourchette_basse}% à ${dataT.fourchette_haute}%`;
+        
+        const fiabT = document.getElementById('touchesFiabilite');
+        fiabT.innerText = dataT.fiabilite;
+        fiabT.style.background = dataT.fiabilite.includes('HAUTE') ? 'var(--accent)' : (dataT.fiabilite.includes('MOYENNE') ? '#f59e0b' : 'var(--danger)');
+        
+        const shadowT = document.getElementById('shadowTouches');
+        if (dataT.shadow_market && !dataT.shadow_market.erreur) {
+            shadowT.style.display = 'block';
+            shadowT.innerHTML = `Cote: ${dataT.shadow_market.cote_saisie} | Edge: ${dataT.shadow_market.edge}% <br> <span style="font-size:14px;">${dataT.shadow_market.statut_shadow_market}</span>`;
+            shadowT.style.color = dataT.shadow_market.edge > 0 ? 'var(--accent)' : 'var(--danger)';
+        }
+    }
+                                }
     } catch (e) { 
         alert("Erreur de connexion ou de code."); 
         console.error(e);
