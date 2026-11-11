@@ -255,6 +255,7 @@
     <div class="market-header"><span class="market-title" style="color: #ef4444;">⚔️ Marché des Fautes</span><span class="market-total" id="fautesFiabilite" style="background:#ef4444; color:#fff;">...</span></div>
     <div style="text-align: center; margin-bottom: 15px;">
         <div style="font-size: 32px; font-weight: 800; color: #ef4444;" id="fautesProbaFinale">--%</div>
+        <div style="font-size: 12px; color: #94a3b8; font-weight: bold; margin-top: 5px;" id="fautesFourchetteDisplay">Fourchette: --% à --%</div>
         <div style="font-size: 12px; color: var(--text-muted);" id="ligneFautesDisplay">Probabilité +25.5 Fautes (Ensemble)</div>
     </div>
     <div id="shadowFautes" style="margin-bottom: 15px; font-size: 13px; text-align: center; font-weight: bold;"></div>
@@ -387,6 +388,9 @@
         if (!dataFautes.erreur) {
             let affichageFautes = dataFautes.proba_calibree ? dataFautes.proba_calibree : dataFautes.ensemble_final;
             document.getElementById('fautesProbaFinale').innerText = affichageFautes + '%';
+            if (dataFautes.fourchette_basse !== undefined) {
+    document.getElementById('fautesFourchetteDisplay').innerText = `Fourchette: ${dataFautes.fourchette_basse}% à ${dataFautes.fourchette_haute}%`;
+    }
             
             // NOUVEAU : On met à jour le texte avec la ligne saisie
             document.getElementById('ligneFautesDisplay').innerText = `Probabilité +${ligneFautes} Fautes (Ensemble)`;
