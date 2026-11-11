@@ -1937,6 +1937,7 @@ async def predict_touches(match_id_local: int, dom_touches: float, ext_touches: 
 
         liste_probas = [p_poisson, p_nbinom, p_mc, p_zip, p_mmpp, p_hamilton, p_hurst]
         moyenne_ensemble = np.mean(liste_probas)
+        borne_basse_t, borne_haute_t = calc_intervalle_confiance(liste_probas)
         ecart_type = np.std(liste_probas)
 
         modeles_proches = sum(1 for p in liste_probas if abs(p - moyenne_ensemble) <= 10)
@@ -1954,6 +1955,8 @@ async def predict_touches(match_id_local: int, dom_touches: float, ext_touches: 
             "marche": f"Touches (+{ligne})",
             "ensemble_final": round(moyenne_ensemble, 2),
             "proba_calibree": round(proba_calibree, 2),
+            "fourchette_basse": borne_basse_t,
+            "fourchette_haute": borne_haute_t, 
             "fiabilite": fiabilite,
             "shadow_market": shadow_result
         }
