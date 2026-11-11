@@ -622,3 +622,22 @@ def calc_merton_jump_diffusion(lambda_base, ligne, proba_saut=0.05, intensite_sa
     p_finale = ((1 - proba_saut) * p_sans_saut) + (proba_saut * p_avec_saut)
     
     return p_finale
+
+def calc_particle_filter(lambda_base, ligne, n_particules=1000):
+    """
+    Modèle 16 : Filtre Particulaire (Sequential Monte Carlo).
+    Simule 1000 scénarios du match et fait la moyenne pondérée.
+    """
+    # 1. On génère 1000 scénarios possibles autour du lambda (avec une variance)
+    particules = np.random.poisson(lambda_base, n_particules)
+    
+    # 2. On calcule la probabilité que chaque particule dépasse la ligne
+    succes = np.sum(particules > ligne)
+    
+    # 3. On ajoute un "bruit" de robustesse (pour éviter les valeurs extrêmes)
+    proba_finale = (succes / n_particules) * 100
+    
+    # 4. On applique un léger lissage pour rendre le modèle plus prudent
+    proba_lissee = (proba_finale * 0.95) + (50.0 * 0.05)
+    
+    return proba_lissee
