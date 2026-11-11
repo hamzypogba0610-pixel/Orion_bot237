@@ -17,7 +17,7 @@ from app.engine import (
     calc_live_score_drift, calc_zero_inflated_poisson, calc_mmpp,
     calc_live_par, calc_hamilton_regime, calc_hurst_exponent, 
     calc_live_cards, calc_merton_jump_diffusion,
-    calibrer_probabilite, calc_intervalle_confiance
+    calibrer_probabilite, calc_intervalle_confiance, calc_particle_filter
 )
 from datetime import datetime, timedelta
 import asyncio
@@ -786,14 +786,17 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
 
         # --- 7. NOUVEAU : MERTON JUMP DIFFUSION ---
         p_merton = calc_merton_jump_diffusion(lambda_simple_total, ligne)
+        
+        # --- 8. NOUVEAU : PARTICLE FILTER ---
+p_particle = calc_particle_filter(lambda_simple_total, ligne)
 
         # 8. ENSEMBLE FINAL (15 MODÈLES)
         liste_probas = [
             p_poisson, p_nbinom, p_mc, p_dc, p_bayes, p_hawkes, p_kalman, p_markov,
-            p_zip, p_mmpp, p_par, p_hamilton, p_hurst, p_merton
+            p_zip, p_mmpp, p_par, p_hamilton, p_hurst, p_merton, p_particle
         ]
         
-        poids = [1]*8 + [1.5]*6
+        poids = [1]*8 + [1.5]*7
         moyenne_ensemble = np.average(liste_probas, weights=poids)
         ecart_type = np.std(liste_probas)
 
@@ -830,7 +833,8 @@ async def predict_ensemble(match_id_local: int, meteo: str = "Sec", cote: float 
                 "par": round(p_par, 2),
                 "hamilton": round(p_hamilton, 2),
                 "hurst": round(p_hurst, 2),
-                "merton": round(p_merton, 2) # <--- NOUVEAU
+                "merton": round(p_merton, 2)
+                "particle_filter": round(p_particle, 2)
             },
             "ensemble_final": round(moyenne_ensemble, 2),
             "proba_calibree": round(proba_calibree, 2),
